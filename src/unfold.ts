@@ -465,6 +465,11 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
    * @returns A promise with the contents of the directory.
    */
   async cd(pathToUpdate = this.rootPath): Promise<void> {
+    const shouldForceRefresh = pathToUpdate === '.';
+    if (shouldForceRefresh) {
+      this.clearDirectoryCache();
+    }
+
     const result = await this.fetchContent(this.rootPath, pathToUpdate);
 
     // @ts-ignore
@@ -575,15 +580,8 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     path: string,
     pathToUpdate?: string
   ): Promise<Contents.IModel[]> {
-    const result = await this.contentManager.get(path);
-
-    if (!result.content) {
-      return [];
-    }
-
     let items: Contents.IModel[] = [];
-
-    const sortedContent = this.sortContents(result.content);
+    const sortedContent = await this.getDirectoryContents(path);
 
     this.openState[path] = true;
 
@@ -635,7 +633,24 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     sender: Contents.IManager,
     change: Contents.IChangedArgs
   ): void {
+    this.clearDirectoryCache();
     this.refresh();
+  }
+
+  private async getDirectoryContents(path: string): Promise<Contents.IModel[]> {
+    const cached = this._directoryCache.get(path);
+    if (cached) {
+      return cached;
+    }
+
+    const result = await this.contentManager.get(path);
+    const sortedContent = result.content ? this.sortContents(result.content) : [];
+    this._directoryCache.set(path, sortedContent);
+    return sortedContent;
+  }
+
+  private clearDirectoryCache(): void {
+    this._directoryCache.clear();
   }
 
   private _isRestored = new PromiseDelegate<void>();
@@ -644,6 +659,7 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
   private _path: string;
   private contentManager: Contents.IManager;
   private openState: { [path: string]: boolean } = {};
+  private _directoryCache = new Map<string, Contents.IModel[]>();
 }
 
 /**
