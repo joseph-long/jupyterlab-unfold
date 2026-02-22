@@ -5,17 +5,11 @@
 .jp-DirListing-item {
   flex-grow: 1;
   display: flex;
+  padding-left: calc(var(--jp-unfold-depth, 0) * var(--indent));
 }
 
 .jp-DirListing-itemName {
   flex-grow: 1;
-}
-
-.jp-DirListing-vbar {
-  /* This is the parent padding (hardcoded in JupyterLab, plus the font size) */
-  height: calc(12px + var(--jp-ui-font-size1));
-  border-left: 1px solid var(--jp-border-color2);
-  margin: -4px 2px -4px 10px;
 }
 
 .jp-DirListing-item.jp-mod-running .jp-DirListing-itemIcon::before {

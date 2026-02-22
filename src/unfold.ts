@@ -169,20 +169,9 @@ export class FileTreeRenderer extends DirListing.Renderer {
       });
     }
 
-    // Removing old vbars
-    while (
-      node.firstChild !== null &&
-      (node.firstChild as HTMLElement).classList.contains('jp-DirListing-vbar')
-    ) {
-      node.removeChild(node.firstChild);
-    }
-
-    // Adding vbars for subdirs
-    for (let n = 0; n < model.path.split('/').length - 1; n++) {
-      const vbar = document.createElement('div');
-      vbar.classList.add('jp-DirListing-vbar');
-      node.insertBefore(vbar, node.firstChild);
-    }
+    // Use lightweight CSS indentation instead of injecting per-row vbar nodes.
+    const depth = model.path.split('/').length - 1;
+    node.style.setProperty('--jp-unfold-depth', String(depth));
   }
 
   private model: FilterFileTreeBrowserModel;
