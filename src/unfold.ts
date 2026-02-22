@@ -33,6 +33,7 @@ import { ITranslator } from '@jupyterlab/translation';
 import { LabIcon } from '@jupyterlab/ui-components';
 
 import { IStateDB } from '@jupyterlab/statedb';
+import { fetchTreeListing } from './api';
 
 // @ts-ignore
 import folderOpenSvgstr from '../style/icons/folder-open.svg';
@@ -569,6 +570,43 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     path: string,
     pathToUpdate?: string
   ): Promise<Contents.IModel[]> {
+    try {
+      return await this.fetchContentFromServer(path, pathToUpdate);
+    } catch (error) {
+      console.warn(
+        'jupyterlab-unfold server tree endpoint unavailable, using Contents API fallback'
+      );
+      return this.fetchContentFromContents(path, pathToUpdate);
+    }
+  }
+
+  private async fetchContentFromServer(
+    path: string,
+    pathToUpdate?: string
+  ): Promise<Contents.IModel[]> {
+    const expandedPaths = this.buildExpandedPaths(path, pathToUpdate);
+    const items = await fetchTreeListing({
+      basePath: path,
+      openPaths: expandedPaths,
+      updatePath: this.normalizePath(pathToUpdate),
+      serverSettings: this.serverSettings
+    });
+
+    const expandedPathSet = new Set(expandedPaths);
+    this.openState[path] = true;
+    for (const entry of items) {
+      if (entry.type === 'directory' && !expandedPathSet.has(entry.path)) {
+        this.openState[entry.path] = false;
+      }
+    }
+
+    return items;
+  }
+
+  private async fetchContentFromContents(
+    path: string,
+    pathToUpdate?: string
+  ): Promise<Contents.IModel[]> {
     let items: Contents.IModel[] = [];
     const sortedContent = await this.getDirectoryContents(path);
 
@@ -586,7 +624,7 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
         this.isOpen(entry.path);
 
       if (isOpen) {
-        const subEntryContent = await this.fetchContent(
+        const subEntryContent = await this.fetchContentFromContents(
           entry.path,
           pathToUpdate
         );
@@ -644,11 +682,42 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     this._directoryCache.clear();
   }
 
+  private buildExpandedPaths(path: string, pathToUpdate?: string): string[] {
+    const expanded = new Set<string>();
+    expanded.add(path);
+
+    Object.entries(this.openState).forEach(([openPath, isOpen]) => {
+      if (isOpen) {
+        expanded.add(openPath);
+      }
+    });
+
+    const normalizedUpdatePath = this.normalizePath(pathToUpdate);
+    if (normalizedUpdatePath) {
+      const parts = normalizedUpdatePath.split('/');
+      let partialPath = '';
+      parts.forEach(part => {
+        partialPath = partialPath ? `${partialPath}/${part}` : part;
+        expanded.add(partialPath);
+      });
+    }
+
+    return Array.from(expanded).filter(Boolean);
+  }
+
+  private normalizePath(path?: string): string | undefined {
+    if (!path) {
+      return undefined;
+    }
+    return path.replace(/^\//, '');
+  }
+
   private _isRestored = new PromiseDelegate<void>();
   private _savedState: IStateDB | null = null;
   private _stateKey: string | null = null;
   private _path: string;
   private contentManager: Contents.IManager;
+  private serverSettings = this.manager.services.serverSettings;
   private openState: { [path: string]: boolean } = {};
   private _directoryCache = new Map<string, Contents.IModel[]>();
 

@@ -8,5 +8,9 @@ from jupyterlab.galata import configure_jupyter_server
 
 configure_jupyter_server(c)
 
+c.ServerApp.jpserver_extensions = {
+    "jupyterlab_unfold": True,
+}
+
 # Uncomment to set server log level to debug level
 # c.ServerApp.log_level = "DEBUG"
