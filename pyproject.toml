@@ -21,6 +21,9 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
 ]
+dependencies = [
+    "jupyter_server>=2.4.0,<3"
+]
 dynamic = ["version", "description", "authors", "urls", "keywords"]
 
 [tool.hatch.version]
@@ -36,6 +39,7 @@ exclude = [".github", "binder"]
 [tool.hatch.build.targets.wheel.shared-data]
 "jupyterlab_unfold/labextension" = "share/jupyter/labextensions/jupyterlab-unfold"
 "install.json" = "share/jupyter/labextensions/jupyterlab-unfold/install.json"
+"jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
 
 [tool.hatch.build.hooks.version]
 path = "jupyterlab_unfold/_version.py"
