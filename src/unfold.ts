@@ -622,9 +622,11 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     const files = data.filter(value => value.type !== 'directory');
 
     const sortedDirectories = directories.sort((a, b) =>
-      a.name.localeCompare(b.name)
+      this.compareByName(a.name, b.name)
     );
-    const sortedFiles = files.sort((a, b) => a.name.localeCompare(b.name));
+    const sortedFiles = files.sort((a, b) =>
+      this.compareByName(a.name, b.name)
+    );
 
     return sortedDirectories.concat(sortedFiles);
   }
@@ -660,6 +662,13 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
   private contentManager: Contents.IManager;
   private openState: { [path: string]: boolean } = {};
   private _directoryCache = new Map<string, Contents.IModel[]>();
+
+  private compareByName(a: string, b: string): number {
+    if (a === b) {
+      return 0;
+    }
+    return a < b ? -1 : 1;
+  }
 }
 
 /**
