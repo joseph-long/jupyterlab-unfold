@@ -22,6 +22,12 @@ To install the extension, execute:
 pip install jupyterlab-unfold
 ```
 
+If your environment does not auto-enable server extensions, run:
+
+```bash
+jupyter server extension enable jupyterlab_unfold --sys-prefix
+```
+
 ## Uninstall
 
 To remove the extension, execute:
@@ -45,6 +51,8 @@ The `jlpm` command is JupyterLab's pinned version of
 # Change directory to the jupyterlab-unfold directory
 # Install package in development mode
 pip install -e .
+# Enable the server extension in the active environment (required for /jupyterlab-unfold/tree)
+jupyter server extension enable jupyterlab_unfold --sys-prefix
 # Link your development version of the extension with JupyterLab
 jupyter labextension develop . --overwrite
 # Rebuild extension Typescript source after making changes

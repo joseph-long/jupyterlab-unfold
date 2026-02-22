@@ -45,6 +45,43 @@ interface IBenchmarkReport {
   };
 }
 
+function normalizeLabUrl(rawTarget: string): URL {
+  const parsed = new URL(rawTarget);
+  const token = parsed.searchParams.get('token');
+
+  const normalized = new URL(parsed.origin);
+  normalized.pathname = parsed.pathname.includes('/lab')
+    ? parsed.pathname
+    : `${parsed.pathname.replace(/\/$/, '')}/lab`;
+
+  if (token) {
+    normalized.searchParams.set('token', token);
+  }
+
+  return normalized;
+}
+
+function buildLabUrl(rawTarget: string, options?: { reset?: boolean }): string {
+  const labUrl = normalizeLabUrl(rawTarget);
+  if (options?.reset) {
+    labUrl.searchParams.set('reset', '');
+  }
+  return labUrl.toString();
+}
+
+function buildTreeEndpointUrl(rawTarget: string): string {
+  const labUrl = normalizeLabUrl(rawTarget);
+  const basePath = labUrl.pathname.endsWith('/lab')
+    ? labUrl.pathname.slice(0, -4)
+    : labUrl.pathname;
+  const endpoint = new URL(labUrl.origin);
+  endpoint.pathname = `${basePath.replace(/\/$/, '')}/jupyterlab-unfold/tree`;
+  if (labUrl.searchParams.has('token')) {
+    endpoint.searchParams.set('token', labUrl.searchParams.get('token') ?? '');
+  }
+  return endpoint.toString();
+}
+
 const SCENARIOS: IScenario[] = [
   {
     key: '10',
@@ -110,8 +147,25 @@ async function writeReport(
 async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> {
   const page = await context.newPage();
   try {
+    const treeProbe = await page.request.post(buildTreeEndpointUrl(TARGET_URL), {
+      data: { path: '' }
+    });
+    if (treeProbe.status() === 404) {
+      throw new Error(
+        `Server endpoint ${buildTreeEndpointUrl(
+          TARGET_URL
+        )} returned 404. Enable the server extension in the target environment: ` +
+          '`jupyter server extension enable jupyterlab_unfold --sys-prefix`.'
+      );
+    }
+    if (!treeProbe.ok()) {
+      throw new Error(
+        `Server endpoint ${buildTreeEndpointUrl(TARGET_URL)} check failed with HTTP ${treeProbe.status()}.`
+      );
+    }
+
     const navigationStart = performance.now();
-    await page.goto(`${TARGET_URL}/lab?reset`);
+    await page.goto(buildLabUrl(TARGET_URL, { reset: true }));
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector(itemSelector('benchmark-tree'), {
       state: 'visible'
