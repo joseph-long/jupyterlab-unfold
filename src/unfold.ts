@@ -72,6 +72,17 @@ interface IBenchmarkWindow extends Window {
   __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: IBenchmarkEvent[];
 }
 
+interface IItemNodeRefs {
+  iconContainer: HTMLElement | null;
+  textContainer: HTMLElement | null;
+  modifiedContainer: HTMLElement | null;
+  fileSizeContainer: HTMLElement | null;
+}
+
+interface ICachedItemNode extends HTMLElement {
+  __jpUnfoldItemNodeRefs__?: IItemNodeRefs;
+}
+
 function emitBenchmarkEvent(event: IBenchmarkEvent): void {
   if (typeof window === 'undefined') {
     return;
@@ -184,6 +195,20 @@ export class FileTreeRenderer extends DirListing.Renderer {
     return null;
   }
 
+  createItemNode(
+    hiddenColumns?: Set<DirListing.ToggleableColumn>
+  ): HTMLElement {
+    const node = super.createItemNode(hiddenColumns);
+    const cachedNode = node as ICachedItemNode;
+    cachedNode.__jpUnfoldItemNodeRefs__ = {
+      iconContainer: DOMUtils.findElement(node, 'jp-DirListing-itemIcon'),
+      textContainer: DOMUtils.findElement(node, 'jp-DirListing-itemText'),
+      modifiedContainer: DOMUtils.findElement(node, 'jp-DirListing-itemModified'),
+      fileSizeContainer: DOMUtils.findElement(node, 'jp-DirListing-itemFileSize')
+    };
+    return node;
+  }
+
   updateItemNode(
     node: HTMLElement,
     model: Contents.IModel,
@@ -198,16 +223,19 @@ export class FileTreeRenderer extends DirListing.Renderer {
       node.classList.remove('jp-mod-selected');
     }
 
-    const iconContainer = DOMUtils.findElement(node, 'jp-DirListing-itemIcon');
-    const textContainer = DOMUtils.findElement(node, 'jp-DirListing-itemText');
-    const modifiedContainer = DOMUtils.findElement(
-      node,
-      'jp-DirListing-itemModified'
-    );
-    const fileSizeContainer = DOMUtils.findElement(
-      node,
-      'jp-DirListing-itemFileSize'
-    );
+    const cachedNode = node as ICachedItemNode;
+    const refs = cachedNode.__jpUnfoldItemNodeRefs__ ?? {
+      iconContainer: DOMUtils.findElement(node, 'jp-DirListing-itemIcon'),
+      textContainer: DOMUtils.findElement(node, 'jp-DirListing-itemText'),
+      modifiedContainer: DOMUtils.findElement(node, 'jp-DirListing-itemModified'),
+      fileSizeContainer: DOMUtils.findElement(node, 'jp-DirListing-itemFileSize')
+    };
+    cachedNode.__jpUnfoldItemNodeRefs__ = refs;
+
+    const iconContainer = refs.iconContainer;
+    const textContainer = refs.textContainer;
+    const modifiedContainer = refs.modifiedContainer;
+    const fileSizeContainer = refs.fileSizeContainer;
 
     if (textContainer) {
       textContainer.textContent = model.name;
@@ -231,20 +259,22 @@ export class FileTreeRenderer extends DirListing.Renderer {
       node.removeAttribute('data-is-dot');
     }
 
-    if (model.type === 'directory' && this.model.isOpen(model.path)) {
-      folderOpenIcon.element({
-        container: iconContainer,
-        className: 'jp-DirListing-itemIcon',
-        stylesheet: 'listing'
-      });
-    } else {
-      LabIcon.resolveElement({
-        icon: fileType?.icon,
-        iconClass: fileType?.iconClass,
-        container: iconContainer,
-        className: 'jp-DirListing-itemIcon',
-        stylesheet: 'listing'
-      });
+    if (iconContainer) {
+      if (model.type === 'directory' && this.model.isOpen(model.path)) {
+        folderOpenIcon.element({
+          container: iconContainer,
+          className: 'jp-DirListing-itemIcon',
+          stylesheet: 'listing'
+        });
+      } else {
+        LabIcon.resolveElement({
+          icon: fileType?.icon,
+          iconClass: fileType?.iconClass,
+          container: iconContainer,
+          className: 'jp-DirListing-itemIcon',
+          stylesheet: 'listing'
+        });
+      }
     }
 
     // Use lightweight CSS indentation instead of injecting per-row vbar nodes.
