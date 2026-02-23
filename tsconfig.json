@@ -20,5 +20,5 @@
     "target": "ES2018",
     "strictPropertyInitialization": false
   },
-  "include": ["src/*"]
+  "include": ["src/**/*"]
 }

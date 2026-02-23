@@ -4,6 +4,15 @@ import {
   createIsolatedFixtureRoot,
   prefixPath
 } from './helpers/fixture';
+import {
+  deletePath,
+  installWorkspaceRouteMock,
+  pathExists,
+  putFile
+} from './helpers/jupyter-api';
+import { itemByPath } from './helpers/selectors';
+import { ensureFolderExpanded, materializeRow } from './helpers/tree-ui';
+import { buildLabUrl } from './helpers/urls';
 
 const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:10888';
 const VERBOSE = process.env.VERBOSE === '1';
@@ -17,222 +26,10 @@ function logVerbose(message: string): void {
   console.info(`[dnd ${timestamp}] ${message}`);
 }
 
-function normalizeLabUrl(rawTarget: string): URL {
-  const parsed = new URL(rawTarget);
-  const token = parsed.searchParams.get('token');
-  const normalized = new URL(parsed.origin);
-  normalized.pathname = parsed.pathname.includes('/lab')
-    ? parsed.pathname
-    : `${parsed.pathname.replace(/\/$/, '')}/lab`;
-  if (token) {
-    normalized.searchParams.set('token', token);
-  }
-  return normalized;
-}
-
-function buildLabUrl(rawTarget: string): string {
-  return normalizeLabUrl(rawTarget).toString();
-}
-
-function buildContentsApiUrl(rawTarget: string, path: string): string {
-  const labUrl = normalizeLabUrl(rawTarget);
-  const apiUrl = new URL(labUrl.origin);
-  const encodedPath = path
-    .split('/')
-    .filter(Boolean)
-    .map(segment => encodeURIComponent(segment))
-    .join('/');
-  apiUrl.pathname = `/api/contents/${encodedPath}`;
-  if (labUrl.searchParams.has('token')) {
-    apiUrl.searchParams.set('token', labUrl.searchParams.get('token') ?? '');
-  }
-  return apiUrl.toString();
-}
-
-function byPath(path: string): string {
-  return `.jp-DirListing-item[data-path="${path}"]`;
-}
-
-async function withRequestRetry<T>(
-  operation: () => Promise<T>,
-  attempts = 3
-): Promise<T> {
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      if (attempt === attempts) {
-        break;
-      }
-      await new Promise(resolve => setTimeout(resolve, attempt * 50));
-    }
-  }
-  throw lastError;
-}
-
-async function isRowVisibleInContainer(
-  page: Page,
-  path: string,
-  contentSelector = '.jp-DirListing-content'
-): Promise<boolean> {
-  const rowSelector = byPath(path);
-  return page.evaluate(
-    ({ rowSelector, contentSelector }) => {
-      const row = document.querySelector(rowSelector) as HTMLElement | null;
-      const content = document.querySelector(contentSelector) as HTMLElement | null;
-      if (!row || !content) {
-        return false;
-      }
-      const rowRect = row.getBoundingClientRect();
-      const contentRect = content.getBoundingClientRect();
-      const verticalOverlap =
-        Math.min(rowRect.bottom, contentRect.bottom) -
-        Math.max(rowRect.top, contentRect.top);
-      const hasHorizontalOverlap =
-        rowRect.right > contentRect.left && rowRect.left < contentRect.right;
-      return (
-        verticalOverlap >= Math.min(16, rowRect.height * 0.5) &&
-        hasHorizontalOverlap
-      );
-    },
-    { rowSelector, contentSelector }
-  );
-}
-
-async function materializeRow(
-  page: Page,
-  path: string,
-  options?: { resetToTop?: boolean; maxScrollSteps?: number; stepPx?: number }
-): Promise<void> {
-  const contentSelector = '.jp-DirListing-content';
-  const content = page.locator(contentSelector).first();
-  await content.waitFor({ state: 'visible', timeout: 30_000 });
-
-  if (options?.resetToTop ?? false) {
-    await content.evaluate(node => {
-      node.scrollTop = 0;
-    });
-    await page.waitForTimeout(10);
-  }
-
-  const maxScrollSteps = options?.maxScrollSteps ?? 80;
-  const stepPx = options?.stepPx ?? 120;
-  for (let step = 0; step < maxScrollSteps; step += 1) {
-    const row = page.locator(byPath(path)).first();
-    if ((await row.count()) > 0) {
-      await page.waitForTimeout(10);
-      if (await isRowVisibleInContainer(page, path, contentSelector)) {
-        await row.scrollIntoViewIfNeeded();
-        await page.waitForTimeout(10);
-        if (await isRowVisibleInContainer(page, path, contentSelector)) {
-          return;
-        }
-      }
-    }
-
-    const canScrollDown = await content.evaluate(
-      node => node.scrollTop + node.clientHeight < node.scrollHeight - 1
-    );
-    if (!canScrollDown) {
-      break;
-    }
-    await content.evaluate((node, delta) => {
-      node.scrollTop = Math.min(
-        node.scrollHeight,
-        Math.max(0, node.scrollTop + delta)
-      );
-    }, stepPx);
-    await page.waitForTimeout(10);
-  }
-
-  throw new Error(`Could not materialize row for path "${path}"`);
-}
-
-async function ensureFolderExpanded(
-  page: Page,
-  folderPath: string,
-  expectedChildPath: string
-): Promise<void> {
-  await materializeRow(page, folderPath, { resetToTop: true, maxScrollSteps: 120 });
-  const child = page.locator(byPath(expectedChildPath)).first();
-  if ((await child.count()) > 0 && (await child.isVisible().catch(() => false))) {
-    return;
-  }
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.click(byPath(folderPath));
-    try {
-      await child.waitFor({ state: 'visible', timeout: 8_000 });
-      return;
-    } catch {
-      // Retry by toggling again if virtualization delayed materialization.
-    }
-  }
-  throw new Error(
-    `Could not expand folder "${folderPath}" to show "${expectedChildPath}"`
-  );
-}
-
-async function ensureWorkspaceMock(page: Page): Promise<void> {
-  logVerbose('installing workspace API mock');
-  let workspace = { data: {}, metadata: { id: 'default' } };
-  await page.route(/.*\/api\/workspaces.*/, (route, request) => {
-    if (request.method() === 'GET') {
-      route.fulfill({
-        status: 200,
-        body: JSON.stringify(workspace)
-      });
-    } else if (request.method() === 'PUT') {
-      workspace = request.postDataJSON();
-      route.fulfill({ status: 204 });
-    } else {
-      route.continue();
-    }
-  });
-}
-
-async function putDirectory(page: Page, path: string): Promise<void> {
-  logVerbose(`creating directory ${path}`);
-  const response = await page.request.put(buildContentsApiUrl(TARGET_URL, path), {
-    data: { type: 'directory' }
-  });
-  if (response.status() !== 201 && response.status() !== 200) {
-    throw new Error(
-      `Failed to create directory ${path}: HTTP ${response.status()}`
-    );
-  }
-}
-
-async function putFile(page: Page, path: string, content: string): Promise<void> {
-  logVerbose(`creating file ${path}`);
-  const response = await page.request.put(buildContentsApiUrl(TARGET_URL, path), {
-    data: { type: 'file', format: 'text', content }
-  });
-  if (response.status() !== 201 && response.status() !== 200) {
-    throw new Error(`Failed to create file ${path}: HTTP ${response.status()}`);
-  }
-}
-
-async function deletePath(page: Page, path: string): Promise<void> {
-  logVerbose(`deleting path ${path}`);
-  const response = await page.request.delete(buildContentsApiUrl(TARGET_URL, path));
-  if (response.status() !== 204 && response.status() !== 404) {
-    throw new Error(`Failed to delete ${path}: HTTP ${response.status()}`);
-  }
-}
-
-async function pathExists(page: Page, path: string): Promise<boolean> {
-  const response = await withRequestRetry(() =>
-    page.request.get(buildContentsApiUrl(TARGET_URL, path))
-  );
-  return response.status() === 200;
-}
-
 async function dragBetween(page: Page, sourcePath: string, targetPath: string): Promise<void> {
   logVerbose(`drag start ${sourcePath} -> ${targetPath}`);
-  const source = page.locator(byPath(sourcePath)).first();
-  const target = page.locator(byPath(targetPath)).first();
+  const source = page.locator(itemByPath(sourcePath)).first();
+  const target = page.locator(itemByPath(targetPath)).first();
   await source.waitFor({ state: 'visible', timeout: 30_000 });
   await target.waitFor({ state: 'visible', timeout: 30_000 });
   const sourceBox = await source.boundingBox();
@@ -253,7 +50,7 @@ async function dragBetween(page: Page, sourcePath: string, targetPath: string): 
 }
 
 async function openFixtureRoot(page: Page): Promise<void> {
-  await page.hover(byPath(fixtureRoot));
+  await page.hover(itemByPath(fixtureRoot));
   await ensureFolderExpanded(page, fixtureRoot, prefixPath(fixtureRoot, 'dir1'));
 }
 
@@ -270,10 +67,10 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('test begin: moves a file into a visible folder');
     const sourcePath = prefixPath(fixtureRoot, 'drag-basic-source.txt');
     const movedPath = prefixPath(fixtureRoot, 'dir2/drag-basic-source.txt');
-    await ensureWorkspaceMock(page);
-    await deletePath(page, movedPath);
-    await deletePath(page, sourcePath);
-    await putFile(page, sourcePath, 'drag basic source');
+    await installWorkspaceRouteMock(page);
+    await deletePath(page, TARGET_URL, movedPath);
+    await deletePath(page, TARGET_URL, sourcePath);
+    await putFile(page, TARGET_URL, sourcePath, 'drag basic source');
 
     await page.goto(buildLabUrl(TARGET_URL));
     logVerbose('navigated to lab');
@@ -283,11 +80,11 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
 
     await dragBetween(page, sourcePath, prefixPath(fixtureRoot, 'dir2'));
 
-    await expect.poll(() => pathExists(page, movedPath)).toBeTruthy();
-    await expect.poll(() => pathExists(page, sourcePath)).toBeFalsy();
+    await expect.poll(() => pathExists(page, TARGET_URL, movedPath)).toBeTruthy();
+    await expect.poll(() => pathExists(page, TARGET_URL, sourcePath)).toBeFalsy();
     logVerbose('asserted basic move');
 
-    await deletePath(page, movedPath);
+    await deletePath(page, TARGET_URL, movedPath);
   });
 
   test('spring-loads a folder while dragging and drops into child folder', async ({
@@ -296,10 +93,10 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('test begin: spring-loads a folder while dragging and drops into child folder');
     const sourcePath = prefixPath(fixtureRoot, 'drag-spring-source.txt');
     const movedPath = prefixPath(fixtureRoot, 'dir2/dir3/drag-spring-source.txt');
-    await ensureWorkspaceMock(page);
-    await deletePath(page, movedPath);
-    await deletePath(page, sourcePath);
-    await putFile(page, sourcePath, 'drag spring source');
+    await installWorkspaceRouteMock(page);
+    await deletePath(page, TARGET_URL, movedPath);
+    await deletePath(page, TARGET_URL, sourcePath);
+    await putFile(page, TARGET_URL, sourcePath, 'drag spring source');
 
     await page.goto(buildLabUrl(TARGET_URL));
     logVerbose('navigated to lab');
@@ -310,8 +107,8 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
       maxScrollSteps: 180
     });
 
-    const source = page.locator(byPath(sourcePath)).first();
-    const dir2 = page.locator(byPath(prefixPath(fixtureRoot, 'dir2'))).first();
+    const source = page.locator(itemByPath(sourcePath)).first();
+    const dir2 = page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2'))).first();
     await source.waitFor({ state: 'visible' });
     await dir2.waitFor({ state: 'visible' });
     const sourceBox = await source.boundingBox();
@@ -335,12 +132,12 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     );
     logVerbose('hovering on dir2 for spring-load');
     await page.waitForTimeout(700);
-    await page.waitForSelector(byPath(prefixPath(fixtureRoot, 'dir2/dir3')), {
+    await page.waitForSelector(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')), {
       state: 'visible'
     });
     logVerbose(`spring-load opened ${prefixPath(fixtureRoot, 'dir2/dir3')}`);
 
-    const dir3 = page.locator(byPath(prefixPath(fixtureRoot, 'dir2/dir3'))).first();
+    const dir3 = page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3'))).first();
     const dir3Box = await dir3.boundingBox();
     if (!dir3Box) {
       throw new Error('Could not compute spring-loaded child folder bounding box');
@@ -353,21 +150,21 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     await page.mouse.up();
     logVerbose(`dropped into ${prefixPath(fixtureRoot, 'dir2/dir3')}`);
 
-    await expect.poll(() => pathExists(page, movedPath)).toBeTruthy();
-    await expect.poll(() => pathExists(page, sourcePath)).toBeFalsy();
+    await expect.poll(() => pathExists(page, TARGET_URL, movedPath)).toBeTruthy();
+    await expect.poll(() => pathExists(page, TARGET_URL, sourcePath)).toBeFalsy();
     logVerbose('asserted spring-load move');
 
-    await deletePath(page, movedPath);
+    await deletePath(page, TARGET_URL, movedPath);
   });
 
   test('supports copy modifier while dragging', async ({ page }) => {
     logVerbose('test begin: supports copy modifier while dragging');
     const sourcePath = prefixPath(fixtureRoot, 'drag-copy-source.txt');
     const copiedPath = prefixPath(fixtureRoot, 'dir2/drag-copy-source.txt');
-    await ensureWorkspaceMock(page);
-    await deletePath(page, copiedPath);
-    await deletePath(page, sourcePath);
-    await putFile(page, sourcePath, 'drag copy source');
+    await installWorkspaceRouteMock(page);
+    await deletePath(page, TARGET_URL, copiedPath);
+    await deletePath(page, TARGET_URL, sourcePath);
+    await putFile(page, TARGET_URL, sourcePath, 'drag copy source');
 
     await page.goto(buildLabUrl(TARGET_URL));
     logVerbose('navigated to lab');
@@ -378,8 +175,8 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
       maxScrollSteps: 180
     });
 
-    const source = page.locator(byPath(sourcePath)).first();
-    const dir2 = page.locator(byPath(prefixPath(fixtureRoot, 'dir2'))).first();
+    const source = page.locator(itemByPath(sourcePath)).first();
+    const dir2 = page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2'))).first();
     const sourceBox = await source.boundingBox();
     const dir2Box = await dir2.boundingBox();
     if (!sourceBox || !dir2Box) {
@@ -403,12 +200,12 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     await page.keyboard.up('Control');
     logVerbose('copy modifier released');
 
-    await expect.poll(() => pathExists(page, copiedPath)).toBeTruthy();
-    await expect.poll(() => pathExists(page, sourcePath)).toBeTruthy();
+    await expect.poll(() => pathExists(page, TARGET_URL, copiedPath)).toBeTruthy();
+    await expect.poll(() => pathExists(page, TARGET_URL, sourcePath)).toBeTruthy();
     logVerbose('asserted copy behavior');
 
-    await deletePath(page, copiedPath);
-    await deletePath(page, sourcePath);
+    await deletePath(page, TARGET_URL, copiedPath);
+    await deletePath(page, TARGET_URL, sourcePath);
   });
 
   test('auto-scrolls virtualized lists while dragging to an offscreen target', async ({
@@ -418,7 +215,7 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     const largeFolder = prefixPath(fixtureRoot, 'benchmark-tree/folder_10000');
     const sourcePath = `${largeFolder}/f10000-item-00001.txt`;
 
-    await ensureWorkspaceMock(page);
+    await installWorkspaceRouteMock(page);
 
     await page.goto(buildLabUrl(TARGET_URL));
     logVerbose('navigated to lab');
@@ -433,7 +230,7 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('expanded benchmark-tree/folder_10000');
 
     const content = page.locator('.jp-DirListing-content').first();
-    const source = page.locator(byPath(sourcePath)).first();
+    const source = page.locator(itemByPath(sourcePath)).first();
     const sourceBox = await source.boundingBox();
     const contentBox = await content.boundingBox();
     if (!sourceBox || !contentBox) {
@@ -513,7 +310,7 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
       );
     }
 
-    const target = page.locator(byPath(targetPath)).first();
+    const target = page.locator(itemByPath(targetPath)).first();
     const targetBox = await target.boundingBox();
     if (!targetBox) {
       throw new Error('Could not compute offscreen target row bounding box');

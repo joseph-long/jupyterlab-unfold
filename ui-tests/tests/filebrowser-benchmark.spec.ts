@@ -5,7 +5,6 @@ import {
   expect,
   type Browser,
   type BrowserContext,
-  type Locator,
   type Page,
   type TestInfo
 } from '@playwright/test';
@@ -14,6 +13,10 @@ import {
   createIsolatedFixtureRoot,
   prefixPath
 } from './helpers/fixture';
+import { parseNumberHeader } from './helpers/metrics';
+import { itemByPath } from './helpers/selectors';
+import { isRowVisibleInContainer, materializeRow } from './helpers/tree-ui';
+import { buildLabUrl, buildTreeEndpointUrl } from './helpers/urls';
 
 const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:10888';
 const SAMPLE_COUNT = Number(process.env.BENCHMARK_SAMPLE_COUNT ?? '3');
@@ -154,51 +157,6 @@ function logProbeTimings(
   }
 }
 
-function normalizeLabUrl(rawTarget: string): URL {
-  const parsed = new URL(rawTarget);
-  const token = parsed.searchParams.get('token');
-
-  const normalized = new URL(parsed.origin);
-  normalized.pathname = parsed.pathname.includes('/lab')
-    ? parsed.pathname
-    : `${parsed.pathname.replace(/\/$/, '')}/lab`;
-
-  if (token) {
-    normalized.searchParams.set('token', token);
-  }
-
-  return normalized;
-}
-
-function buildLabUrl(
-  rawTarget: string,
-  options?: { reset?: boolean; workspace?: string }
-): string {
-  const labUrl = normalizeLabUrl(rawTarget);
-  if (options?.workspace) {
-    labUrl.pathname = labUrl.pathname.replace(
-      /\/lab\/?$/,
-      `/lab/workspaces/${encodeURIComponent(options.workspace)}`
-    );
-  }
-  if (options?.reset) {
-    labUrl.searchParams.set('reset', '');
-  }
-  return labUrl.toString();
-}
-
-function buildTreeEndpointUrl(rawTarget: string): string {
-  const labUrl = normalizeLabUrl(rawTarget);
-  const basePath = labUrl.pathname.endsWith('/lab')
-    ? labUrl.pathname.slice(0, -4)
-    : labUrl.pathname;
-  const endpoint = new URL(labUrl.origin);
-  endpoint.pathname = `${basePath.replace(/\/$/, '')}/jupyterlab-unfold/tree`;
-  if (labUrl.searchParams.has('token')) {
-    endpoint.searchParams.set('token', labUrl.searchParams.get('token') ?? '');
-  }
-  return endpoint.toString();
-}
 
 const SCENARIOS: IScenario[] = [
   {
@@ -232,10 +190,6 @@ function scopedScenarios(rootPath: string): IScenario[] {
   }));
 }
 
-function itemSelector(path: string): string {
-  return `.jp-DirListing-item[data-path="${path}"]`;
-}
-
 function summarize(values: number[]): IBenchmarkSummary {
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -245,18 +199,6 @@ function summarize(values: number[]): IBenchmarkSummary {
     min,
     max
   };
-}
-
-function parseNumberHeader(
-  headers: Record<string, string>,
-  key: string
-): number | null {
-  const raw = headers[key];
-  if (raw === undefined) {
-    return null;
-  }
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function emptyBackendStepTiming(): IBackendStepTiming {
@@ -359,88 +301,23 @@ async function measureVisibilityTransition(
   targetState: 'visible' | 'hidden'
 ): Promise<ITransitionMeasurement> {
   const contentSelector = '.jp-DirListing-content';
-  const isRowVisibleInContainer = async (path: string): Promise<boolean> => {
-    const rowSelector = itemSelector(path);
-    return page.evaluate(
-      ({ rowSelector, contentSelector }) => {
-        const row = document.querySelector(rowSelector) as HTMLElement | null;
-        const content = document.querySelector(
-          contentSelector
-        ) as HTMLElement | null;
-        if (!row || !content) {
-          return false;
-        }
-        const rowRect = row.getBoundingClientRect();
-        const contentRect = content.getBoundingClientRect();
-        const verticalOverlap =
-          Math.min(rowRect.bottom, contentRect.bottom) -
-          Math.max(rowRect.top, contentRect.top);
-        const hasHorizontalOverlap =
-          rowRect.right > contentRect.left && rowRect.left < contentRect.right;
-        return verticalOverlap >= Math.min(16, rowRect.height * 0.5) &&
-          hasHorizontalOverlap;
-      },
-      { rowSelector, contentSelector }
-    );
-  };
-
   const waitForMaterializedVisibleRow = async (
     path: string,
     maxScrollSteps = 80
-  ): Promise<Locator> => {
-    const contentLocator = page.locator(contentSelector).first();
-    await contentLocator.waitFor({ state: 'visible', timeout: 5_000 });
-
-    // Emulate user behavior: start from the top and scroll until the row is
-    // materialized by virtualization and visible.
-    await contentLocator.evaluate(node => {
-      node.scrollTop = 0;
+  ) => {
+    await materializeRow(page, path, {
+      resetToTop: true,
+      maxScrollSteps,
+      stepPx: 120
     });
+    const rowLocator = page.locator(itemByPath(path)).first();
     await page.waitForTimeout(10);
-
-    for (let step = 0; step < maxScrollSteps; step += 1) {
-      const rowLocator = page.locator(itemSelector(path)).first();
-      const rowCount = await rowLocator.count();
-      if (rowCount > 0) {
-        await page.waitForTimeout(10);
-        const inViewport = await isRowVisibleInContainer(path);
-        if (inViewport) {
-          // Check one more frame so we don't click a row that's about to be
-          // recycled by virtualization.
-          await page.waitForTimeout(10);
-          if (await isRowVisibleInContainer(path)) {
-            await rowLocator.scrollIntoViewIfNeeded();
-            await page.waitForTimeout(10);
-            if (await isRowVisibleInContainer(path)) {
-              return rowLocator;
-            }
-          }
-        }
-      }
-
-      const canScrollDown = await contentLocator.evaluate(
-        node => node.scrollTop + node.clientHeight < node.scrollHeight - 1
+    if (!(await isRowVisibleInContainer(page, path, contentSelector))) {
+      throw new Error(
+        `${stepLabel} failed: row materialized but not visible for path "${path}"`
       );
-      if (!canScrollDown) {
-        const rowCountAtEnd = await page.locator(itemSelector(path)).count();
-        if (rowCountAtEnd > 0 && (await isRowVisibleInContainer(path))) {
-          return rowLocator;
-        }
-        break;
-      }
-
-      await contentLocator.evaluate((node, delta) => {
-        node.scrollTop = Math.min(
-          node.scrollHeight,
-          Math.max(0, node.scrollTop + delta)
-        );
-      }, 120);
-      await page.waitForTimeout(10);
     }
-
-    throw new Error(
-      `${stepLabel} failed: could not materialize row for path "${path}" in the virtualized list`
-    );
+    return rowLocator;
   };
 
   await waitForMaterializedVisibleRow(folderPath);
@@ -481,7 +358,7 @@ async function measureVisibilityTransition(
   }
 
   const responseTime = performance.now();
-  await page.waitForSelector(itemSelector(itemPath), { state: targetState });
+  await page.waitForSelector(itemByPath(itemPath), { state: targetState });
   const endTime = performance.now();
   const elapsedMs = endTime - startTime;
   const clickToResponseMs = responseTime - startTime;
@@ -645,7 +522,7 @@ async function runSingleBenchmark(
     logVerbose(`[user:${userId}] navigating to ${navUrl}`);
     await page.goto(navUrl);
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
-    await page.waitForSelector(itemSelector(fixtureRoot), {
+    await page.waitForSelector(itemByPath(fixtureRoot), {
       state: 'visible',
       timeout: 30_000
     });
@@ -655,14 +532,14 @@ async function runSingleBenchmark(
     );
 
     logVerbose(`[user:${userId}] expanding ${fixtureRoot}`);
-    await page.click(itemSelector(fixtureRoot));
+    await page.click(itemByPath(fixtureRoot));
     try {
-      await page.waitForSelector(itemSelector(prefixPath(fixtureRoot, 'benchmark-tree')), {
+      await page.waitForSelector(itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')), {
         state: 'visible',
         timeout: 30_000
       });
-      await page.click(itemSelector(prefixPath(fixtureRoot, 'benchmark-tree')));
-      await page.waitForSelector(itemSelector(scenarios[0].folderPath), {
+      await page.click(itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')));
+      await page.waitForSelector(itemByPath(scenarios[0].folderPath), {
         state: 'visible',
         timeout: 30_000
       });

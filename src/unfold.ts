@@ -4,8 +4,6 @@ import { IDragEvent } from '@lumino/dragdrop';
 
 import { toArray } from '@lumino/algorithm';
 
-import { ElementExt } from '@lumino/domutils';
-
 import { PromiseDelegate, ReadonlyJSONObject } from '@lumino/coreutils';
 import { Message } from '@lumino/messaging';
 
@@ -34,23 +32,18 @@ import { ITranslator } from '@jupyterlab/translation';
 import { LabIcon } from '@jupyterlab/ui-components';
 
 import { IStateDB } from '@jupyterlab/statedb';
-import { fetchTreeListing } from './api';
+import { DragDropController } from './listing/DragDropController';
+import { VirtualizationController } from './listing/VirtualizationController';
+import { OpenStateMap } from './model/openState';
+import { fetchWithFallback } from './model/treeFetchStrategy';
 
 // @ts-ignore
 import folderOpenSvgstr from '../style/icons/folder-open.svg';
 
 /**
- * The class name added to drop targets.
- */
-const DROP_TARGET_CLASS = 'jp-mod-dropTarget';
-
-/**
  * The mime type for a contents drag object.
  */
 const CONTENTS_MIME = 'application/x-jupyter-icontents';
-const SPRING_LOAD_DELAY_MS = 500;
-const EDGE_SCROLL_ZONE_PX = 28;
-const EDGE_SCROLL_MAX_PX_PER_FRAME = 20;
 
 interface IBenchmarkEvent {
   type: 'tree-fetch';
@@ -142,21 +135,6 @@ export namespace DirTreeListing {
    * An options object for initializing a file tree listing widget.
    */
   export interface IOptions extends DirListing.IOptions {
-    /**
-     * A file browser model instance.
-     */
-    model: FilterFileTreeBrowserModel;
-  }
-}
-
-/**
- * The namespace for the `FileTreeBrowser` class statics.
- */
-export namespace FileTreeBrowser {
-  /**
-   * An options object for initializing a file tree browser widget.
-   */
-  export interface IOptions extends FileBrowser.IOptions {
     /**
      * A file browser model instance.
      */
@@ -311,6 +289,15 @@ export class DirTreeListing extends DirListing {
   constructor(options: DirTreeListing.IOptions) {
     super({ ...options, renderer: new FileTreeRenderer(options.model) });
     this.addClass('jp-mod-unfold-virtualized');
+    this._virtualization = new VirtualizationController();
+    this._dragDrop = new DragDropController({
+      contentNode: this.contentNode,
+      getItemByPath: path => this._getItemByPath(path),
+      isPathOpen: path => this.model.isOpen(path),
+      openPath: path => {
+        void this.model.toggle(path);
+      }
+    });
   }
 
   set singleClickToUnfold(value: boolean) {
@@ -331,16 +318,14 @@ export class DirTreeListing extends DirListing {
 
   protected onUpdateRequest(msg: Message): void {
     const latestItems = toArray(this.model.items());
-    if (latestItems.length > 0) {
-      this._lastNonEmptyItems = latestItems;
-    }
-    const allItems =
-      latestItems.length > 0 ? latestItems : this._lastNonEmptyItems;
+    const allItems = this._virtualization.resolveAllItems(latestItems);
 
-    if (!this.shouldVirtualize(allItems.length)) {
-      this.clearVirtualSpacers();
-      this._virtualVisibleItems = allItems;
-      this._virtualRangeStart = 0;
+    const virtualWindow = this._virtualization.computeWindow(
+      allItems,
+      this.contentNode
+    );
+    if (!virtualWindow.virtualized) {
+      this._virtualization.clearSpacers();
       super.onUpdateRequest(msg);
       return;
     }
@@ -353,26 +338,23 @@ export class DirTreeListing extends DirListing {
     const renderer = this._renderer as DirListing.IRenderer;
     const content = this.contentNode;
 
-    const range = this.computeVisibleRange(allItems.length);
-    const visibleItems = allItems.slice(range.start, range.end);
-    this._virtualRangeStart = range.start;
-    this._virtualVisibleItems = visibleItems;
-    const topPx = range.start * this._virtualRowHeight;
-    const bottomPx =
-      Math.max(0, allItems.length - range.end) * this._virtualRowHeight;
-    this.applyVirtualSpacers(topPx, bottomPx);
+    this._virtualization.applySpacers(
+      content,
+      virtualWindow.topPx,
+      virtualWindow.bottomPx
+    );
 
-    while (nodes.length > visibleItems.length) {
+    while (nodes.length > virtualWindow.visibleItems.length) {
       content.removeChild(nodes.pop()!);
     }
 
-    while (nodes.length < visibleItems.length) {
+    while (nodes.length < virtualWindow.visibleItems.length) {
       // @ts-ignore signature variations across JupyterLab versions
       const node = renderer.createItemNode(this._hiddenColumns, this._columnSizes);
       node.classList.add('jp-DirListing-item');
       nodes.push(node);
-      if (this._bottomSpacer?.parentElement === content) {
-        content.insertBefore(node, this._bottomSpacer);
+      if (this._virtualization.bottomSpacer?.parentElement === content) {
+        content.insertBefore(node, this._virtualization.bottomSpacer);
       } else {
         content.appendChild(node);
       }
@@ -393,7 +375,7 @@ export class DirTreeListing extends DirListing {
         return;
       }
       // @ts-ignore private focus index
-      if (i + range.start === this._focusIndex) {
+      if (i + virtualWindow.rangeStart === this._focusIndex) {
         nameNode.setAttribute('tabIndex', '0');
         nameNode.setAttribute('role', 'button');
       } else {
@@ -407,7 +389,11 @@ export class DirTreeListing extends DirListing {
     // @ts-ignore private field from DirListing
     this._sortedItems = allItems;
     // @ts-ignore private/protected visibility mismatch in extension context
-    this.updateNodes(visibleItems, nodes);
+    this.updateNodes(virtualWindow.visibleItems, nodes);
+    this._virtualization.setRenderedWindow(
+      virtualWindow.rangeStart,
+      virtualWindow.visibleItems.length
+    );
 
     // @ts-ignore private field from DirListing
     this._prevPath = this._model.path;
@@ -439,11 +425,10 @@ export class DirTreeListing extends DirListing {
     if (!event.mimeData.hasData(CONTENTS_MIME)) {
       return;
     }
-    this._dragInProgress = true;
     event.preventDefault();
     event.stopPropagation();
     event.dropAction = event.proposedAction;
-    this._updateDragState(
+    this._dragDrop.updateDragState(
       event.clientX,
       event.clientY,
       event.target as HTMLElement | null
@@ -453,9 +438,8 @@ export class DirTreeListing extends DirListing {
   private _eventDragOver(event: IDragEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    this._dragInProgress = true;
     event.dropAction = event.proposedAction;
-    this._updateDragState(
+    this._dragDrop.updateDragState(
       event.clientX,
       event.clientY,
       event.target as HTMLElement | null
@@ -469,16 +453,16 @@ export class DirTreeListing extends DirListing {
     clearTimeout(this._selectTimer);
     if (event.proposedAction === 'none') {
       event.dropAction = 'none';
-      this._cleanupDragInteraction();
+      this._dragDrop.cleanup();
       return;
     }
     if (!event.mimeData.hasData(CONTENTS_MIME)) {
-      this._cleanupDragInteraction();
+      this._dragDrop.cleanup();
       return;
     }
 
     let newDir = '';
-    const targetPath = this._activeDropTargetPath;
+    const targetPath = this._dragDrop.activeDropTargetPath;
     const targetItem = targetPath ? this._getItemByPath(targetPath) : null;
     if (targetItem) {
       newDir =
@@ -521,16 +505,13 @@ export class DirTreeListing extends DirListing {
         error
       );
     });
-    this._cleanupDragInteraction();
+    this._dragDrop.cleanup();
   }
 
   private _eventDragLeave(event: IDragEvent): void {
     event.preventDefault();
     event.stopPropagation();
-    if (ElementExt.hitTest(this.node, event.clientX, event.clientY)) {
-      return;
-    }
-    this._cleanupDragInteraction();
+    this._dragDrop.handleDragLeave(event.clientX, event.clientY, this.node);
   }
 
   /**
@@ -586,7 +567,11 @@ export class DirTreeListing extends DirListing {
         if (this.shouldVirtualize()) {
           const scrollTarget = event.target as EventTarget | null;
           if (scrollTarget === this.contentNode) {
-            this.scheduleVirtualUpdate();
+            this._virtualization.scheduleUpdate(
+              this.contentNode,
+              () => this._virtualization.resolveAllItems(toArray(this.model.items())),
+              () => this.update()
+            );
           }
         }
         super.handleEvent(event);
@@ -598,101 +583,20 @@ export class DirTreeListing extends DirListing {
   }
 
   protected onBeforeDetach(msg: Message): void {
-    this._cleanupDragInteraction();
+    this._dragDrop.cleanup();
+    this._virtualization.cancelUpdate();
     super.onBeforeDetach(msg);
   }
 
   private _singleClickToUnfold = true;
-  private _virtualizationThreshold = 2500;
-  private _virtualRowHeight = 24;
-  private _virtualOverscanRows = 80;
-  private _virtualMinRows = 200;
-  private _topSpacer: HTMLElement | null = null;
-  private _bottomSpacer: HTMLElement | null = null;
-  private _lastRange = { start: -1, end: -1 };
-  private _virtualRangeStart = 0;
-  private _virtualVisibleItems: Contents.IModel[] = [];
-  private _lastNonEmptyItems: Contents.IModel[] = [];
-  private _virtualUpdateRaf = 0;
-  private _dragInProgress = false;
-  private _activeDropTargetPath: string | null = null;
-  private _springHoverPath: string | null = null;
-  private _springHoverTimer = 0;
-  private _springOpenedPaths = new Set<string>();
-  private _edgeScrollRaf = 0;
-  private _edgeScrollVelocity = 0;
-  private _edgePointerClientX = 0;
-  private _edgePointerClientY = 0;
+  private _virtualization: VirtualizationController;
+  private _dragDrop: DragDropController;
 
   private shouldVirtualize(itemCount?: number): boolean {
     const count =
       itemCount ??
-      Math.max(toArray(this.model.items()).length, this._lastNonEmptyItems.length);
-    return count >= this._virtualizationThreshold;
-  }
-
-  private computeVisibleRange(totalItems: number): { start: number; end: number } {
-    if (totalItems <= 0) {
-      this._lastRange = { start: 0, end: 0 };
-      return this._lastRange;
-    }
-
-    const content = this.contentNode;
-    const viewportHeight = Math.max(
-      content.clientHeight,
-      this._virtualRowHeight
-    );
-    const visibleRows = Math.max(
-      this._virtualMinRows,
-      Math.ceil(viewportHeight / this._virtualRowHeight)
-    );
-    const scrollTop = Math.max(0, content.scrollTop);
-    const maxFirstVisible = Math.max(0, totalItems - 1);
-    const firstVisible = Math.min(
-      maxFirstVisible,
-      Math.floor(scrollTop / this._virtualRowHeight)
-    );
-    const start = Math.max(0, firstVisible - this._virtualOverscanRows);
-    const unclampedEnd = Math.min(
-      totalItems,
-      firstVisible + visibleRows + this._virtualOverscanRows
-    );
-    const end = Math.max(start + 1, unclampedEnd);
-    if (this._lastRange.start === start && this._lastRange.end === end) {
-      return this._lastRange;
-    }
-    this._lastRange = { start, end };
-    return this._lastRange;
-  }
-
-  private applyVirtualSpacers(topPx: number, bottomPx: number): void {
-    const content = this.contentNode;
-    if (!this._topSpacer) {
-      this._topSpacer = document.createElement('li');
-      this._topSpacer.className = 'jp-unfold-virtual-spacer';
-    }
-    if (!this._bottomSpacer) {
-      this._bottomSpacer = document.createElement('li');
-      this._bottomSpacer.className = 'jp-unfold-virtual-spacer';
-    }
-
-    this._topSpacer.style.height = `${Math.max(0, topPx)}px`;
-    this._bottomSpacer.style.height = `${Math.max(0, bottomPx)}px`;
-    content.insertBefore(this._topSpacer, content.firstChild);
-    content.appendChild(this._bottomSpacer);
-  }
-
-  private clearVirtualSpacers(): void {
-    if (this._topSpacer?.parentElement) {
-      this._topSpacer.parentElement.removeChild(this._topSpacer);
-    }
-    if (this._bottomSpacer?.parentElement) {
-      this._bottomSpacer.parentElement.removeChild(this._bottomSpacer);
-    }
-    this._lastRange = { start: -1, end: -1 };
-    this._virtualRangeStart = 0;
-    this.cancelVirtualUpdate();
-    this._cleanupDragInteraction();
+      this._virtualization.resolveAllItems(toArray(this.model.items())).length;
+    return this._virtualization.shouldVirtualize(count);
   }
 
   private entryForClick(event: MouseEvent): Contents.IModel | null {
@@ -712,186 +616,8 @@ export class DirTreeListing extends DirListing {
     return null;
   }
 
-  private scheduleVirtualUpdate(): void {
-    if (this._virtualUpdateRaf !== 0) {
-      return;
-    }
-    this._virtualUpdateRaf = window.requestAnimationFrame(() => {
-      this._virtualUpdateRaf = 0;
-      const allItems = toArray(this.model.items());
-      const nextRange = this.computeVisibleRange(allItems.length);
-      if (
-        nextRange.start !== this._virtualRangeStart ||
-        nextRange.end !== this._virtualRangeStart + this._virtualVisibleItems.length
-      ) {
-        this.update();
-      }
-    });
-  }
-
-  private cancelVirtualUpdate(): void {
-    if (this._virtualUpdateRaf !== 0) {
-      window.cancelAnimationFrame(this._virtualUpdateRaf);
-      this._virtualUpdateRaf = 0;
-    }
-  }
-
   private _getItemByPath(path: string): Contents.IModel | null {
     return toArray(this.model.items()).find(item => item.path === path) ?? null;
-  }
-
-  private _rowPathAtPoint(
-    clientX: number,
-    clientY: number,
-    target?: HTMLElement | null
-  ): string | null {
-    const directRow = target?.closest('.jp-DirListing-item') as HTMLElement | null;
-    if (directRow) {
-      return directRow.getAttribute('data-path');
-    }
-    const hovered = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
-    const row = hovered?.closest('.jp-DirListing-item') as HTMLElement | null;
-    return row?.getAttribute('data-path') ?? null;
-  }
-
-  private _setDropTargetPath(path: string | null): void {
-    if (this._activeDropTargetPath === path) {
-      return;
-    }
-    const previousPath = this._activeDropTargetPath;
-    if (previousPath) {
-      const previousNode = this.contentNode.querySelector(
-        `.jp-DirListing-item[data-path="${CSS.escape(previousPath)}"]`
-      );
-      previousNode?.classList.remove(DROP_TARGET_CLASS);
-    }
-    this._activeDropTargetPath = path;
-    if (!path) {
-      this._cancelSpringHover();
-      return;
-    }
-    const node = this.contentNode.querySelector(
-      `.jp-DirListing-item[data-path="${CSS.escape(path)}"]`
-    );
-    node?.classList.add(DROP_TARGET_CLASS);
-    this._updateSpringHover(path);
-  }
-
-  private _updateSpringHover(path: string): void {
-    const item = this._getItemByPath(path);
-    const shouldSpring =
-      !!item &&
-      item.type === 'directory' &&
-      !this.model.isOpen(path) &&
-      !this._springOpenedPaths.has(path);
-    if (!shouldSpring) {
-      this._cancelSpringHover();
-      return;
-    }
-    if (this._springHoverPath === path && this._springHoverTimer !== 0) {
-      return;
-    }
-    this._cancelSpringHover();
-    this._springHoverPath = path;
-    this._springHoverTimer = window.setTimeout(() => {
-      const hoverPath = this._springHoverPath;
-      if (!hoverPath || hoverPath !== path || this.model.isOpen(path)) {
-        return;
-      }
-      this._springOpenedPaths.add(path);
-      void this.model.toggle(path);
-    }, SPRING_LOAD_DELAY_MS);
-  }
-
-  private _cancelSpringHover(): void {
-    this._springHoverPath = null;
-    if (this._springHoverTimer !== 0) {
-      window.clearTimeout(this._springHoverTimer);
-      this._springHoverTimer = 0;
-    }
-  }
-
-  private _updateDragState(
-    clientX: number,
-    clientY: number,
-    target?: HTMLElement | null
-  ): void {
-    this._edgePointerClientX = clientX;
-    this._edgePointerClientY = clientY;
-    this._setDropTargetPath(this._rowPathAtPoint(clientX, clientY, target));
-    this._edgeScrollVelocity = this._computeEdgeScrollVelocity(clientY);
-    if (this._edgeScrollVelocity !== 0) {
-      this._startEdgeAutoScroll();
-    } else {
-      this._stopEdgeAutoScroll();
-    }
-  }
-
-  private _computeEdgeScrollVelocity(clientY: number): number {
-    const rect = this.contentNode.getBoundingClientRect();
-    if (clientY < rect.top || clientY > rect.bottom) {
-      return 0;
-    }
-    const topDistance = clientY - rect.top;
-    if (topDistance < EDGE_SCROLL_ZONE_PX) {
-      const ratio = 1 - topDistance / EDGE_SCROLL_ZONE_PX;
-      return -EDGE_SCROLL_MAX_PX_PER_FRAME * ratio * ratio;
-    }
-    const bottomDistance = rect.bottom - clientY;
-    if (bottomDistance < EDGE_SCROLL_ZONE_PX) {
-      const ratio = 1 - bottomDistance / EDGE_SCROLL_ZONE_PX;
-      return EDGE_SCROLL_MAX_PX_PER_FRAME * ratio * ratio;
-    }
-    return 0;
-  }
-
-  private _startEdgeAutoScroll(): void {
-    if (this._edgeScrollRaf !== 0) {
-      return;
-    }
-    const step = () => {
-      this._edgeScrollRaf = 0;
-      if (!this._dragInProgress || this._edgeScrollVelocity === 0) {
-        return;
-      }
-      const content = this.contentNode;
-      const nextScrollTop = Math.max(
-        0,
-        Math.min(
-          content.scrollHeight - content.clientHeight,
-          content.scrollTop + this._edgeScrollVelocity
-        )
-      );
-      if (nextScrollTop !== content.scrollTop) {
-        content.scrollTop = nextScrollTop;
-      }
-      this._setDropTargetPath(
-        this._rowPathAtPoint(this._edgePointerClientX, this._edgePointerClientY)
-      );
-      this._edgeScrollVelocity = this._computeEdgeScrollVelocity(
-        this._edgePointerClientY
-      );
-      if (this._edgeScrollVelocity !== 0) {
-        this._edgeScrollRaf = window.requestAnimationFrame(step);
-      }
-    };
-    this._edgeScrollRaf = window.requestAnimationFrame(step);
-  }
-
-  private _stopEdgeAutoScroll(): void {
-    if (this._edgeScrollRaf !== 0) {
-      window.cancelAnimationFrame(this._edgeScrollRaf);
-      this._edgeScrollRaf = 0;
-    }
-    this._edgeScrollVelocity = 0;
-  }
-
-  private _cleanupDragInteraction(): void {
-    this._dragInProgress = false;
-    this._setDropTargetPath(null);
-    this._cancelSpringHover();
-    this._springOpenedPaths.clear();
-    this._stopEdgeAutoScroll();
   }
 }
 
@@ -1060,96 +786,36 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     path: string,
     pathToUpdate?: string
   ): Promise<Contents.IModel[]> {
-    try {
-      return await this.fetchContentFromServer(path, pathToUpdate);
-    } catch (error) {
-      console.warn(
-        'jupyterlab-unfold server tree endpoint unavailable, using Contents API fallback'
-      );
-      return this.fetchContentFromContents(path, pathToUpdate);
-    }
-  }
-
-  private async fetchContentFromServer(
-    path: string,
-    pathToUpdate?: string
-  ): Promise<Contents.IModel[]> {
     const modelStart = performance.now();
-    const expandedPaths = this.buildExpandedPaths(path, pathToUpdate);
-    const normalizedUpdatePath = this.normalizePath(pathToUpdate);
-    const treeListing = await fetchTreeListing({
-      basePath: path,
-      openPaths: expandedPaths,
-      updatePath: normalizedUpdatePath,
-      serverSettings: this.serverSettings
-    });
-    const items = treeListing.items;
-    const openStateStart = performance.now();
-
-    const expandedPathSet = new Set(expandedPaths);
-    this.openState[path] = true;
-    for (const entry of items) {
-      if (entry.type === 'directory' && !expandedPathSet.has(entry.path)) {
-        this.openState[entry.path] = false;
-      }
-    }
-    const openStateUpdateMs = performance.now() - openStateStart;
-
-    emitBenchmarkEvent({
-      type: 'tree-fetch',
-      requestId: treeListing.diagnostics.requestId,
+    const result = await fetchWithFallback({
       path,
-      updatePath: normalizedUpdatePath ?? null,
-      expandedPathsCount: expandedPaths.length,
-      itemCount: items.length,
-      clientRequestMs: treeListing.diagnostics.requestMs,
-      clientJsonMs: treeListing.diagnostics.jsonMs,
-      clientFetchTotalMs: treeListing.diagnostics.totalMs,
-      openStateUpdateMs,
-      modelTotalMs: performance.now() - modelStart,
-      serverTreeMs: treeListing.diagnostics.serverTreeMs,
-      serverEncodeMs: treeListing.diagnostics.serverEncodeMs,
-      serverTotalMs: treeListing.diagnostics.serverTotalMs,
-      serverItemCount: treeListing.diagnostics.serverItemCount,
-      serverListedDirs: treeListing.diagnostics.serverListedDirs
+      pathToUpdate,
+      openState: this.openState,
+      serverSettings: this.serverSettings,
+      getDirectoryContents: async dirPath => this.getDirectoryContents(dirPath)
     });
 
-    return items;
-  }
-
-  private async fetchContentFromContents(
-    path: string,
-    pathToUpdate?: string
-  ): Promise<Contents.IModel[]> {
-    let items: Contents.IModel[] = [];
-    const sortedContent = await this.getDirectoryContents(path);
-
-    this.openState[path] = true;
-
-    for (const entry of sortedContent) {
-      items.push(entry);
-
-      if (entry.type !== 'directory') {
-        continue;
-      }
-
-      const isOpen =
-        (pathToUpdate && pathToUpdate.startsWith('/' + entry.path)) ||
-        this.isOpen(entry.path);
-
-      if (isOpen) {
-        const subEntryContent = await this.fetchContentFromContents(
-          entry.path,
-          pathToUpdate
-        );
-
-        items = items.concat(subEntryContent);
-      } else {
-        this.openState[entry.path] = false;
-      }
+    if (result.source === 'server' && result.diagnostics && result.serverMetadata) {
+      emitBenchmarkEvent({
+        type: 'tree-fetch',
+        requestId: result.diagnostics.requestId,
+        path,
+        updatePath: result.serverMetadata.normalizedUpdatePath ?? null,
+        expandedPathsCount: result.serverMetadata.expandedPathsCount,
+        itemCount: result.items.length,
+        clientRequestMs: result.diagnostics.requestMs,
+        clientJsonMs: result.diagnostics.jsonMs,
+        clientFetchTotalMs: result.diagnostics.totalMs,
+        openStateUpdateMs: result.serverMetadata.openStateUpdateMs,
+        modelTotalMs: performance.now() - modelStart,
+        serverTreeMs: result.diagnostics.serverTreeMs,
+        serverEncodeMs: result.diagnostics.serverEncodeMs,
+        serverTotalMs: result.diagnostics.serverTotalMs,
+        serverItemCount: result.diagnostics.serverItemCount,
+        serverListedDirs: result.diagnostics.serverListedDirs
+      });
     }
-
-    return items;
+    return result.items;
   }
 
   /**
@@ -1196,43 +862,13 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     this._directoryCache.clear();
   }
 
-  private buildExpandedPaths(path: string, pathToUpdate?: string): string[] {
-    const expanded = new Set<string>();
-    expanded.add(path);
-
-    Object.entries(this.openState).forEach(([openPath, isOpen]) => {
-      if (isOpen) {
-        expanded.add(openPath);
-      }
-    });
-
-    const normalizedUpdatePath = this.normalizePath(pathToUpdate);
-    if (normalizedUpdatePath) {
-      const parts = normalizedUpdatePath.split('/');
-      let partialPath = '';
-      parts.forEach(part => {
-        partialPath = partialPath ? `${partialPath}/${part}` : part;
-        expanded.add(partialPath);
-      });
-    }
-
-    return Array.from(expanded).filter(Boolean);
-  }
-
-  private normalizePath(path?: string): string | undefined {
-    if (!path) {
-      return undefined;
-    }
-    return path.replace(/^\//, '');
-  }
-
   private _isRestored = new PromiseDelegate<void>();
   private _savedState: IStateDB | null = null;
   private _stateKey: string | null = null;
   private _path: string;
   private contentManager: Contents.IManager;
   private serverSettings = this.manager.services.serverSettings;
-  private openState: { [path: string]: boolean } = {};
+  private openState: OpenStateMap = {};
   private _directoryCache = new Map<string, Contents.IModel[]>();
 
   private compareByName(a: string, b: string): number {
