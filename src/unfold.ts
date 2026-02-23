@@ -77,6 +77,8 @@ interface IItemNodeRefs {
   textContainer: HTMLElement | null;
   modifiedContainer: HTMLElement | null;
   fileSizeContainer: HTMLElement | null;
+  lastIconKey?: string;
+  lastDepth?: number;
 }
 
 interface ICachedItemNode extends HTMLElement {
@@ -259,7 +261,14 @@ export class FileTreeRenderer extends DirListing.Renderer {
       node.removeAttribute('data-is-dot');
     }
 
-    if (iconContainer) {
+    const iconKey =
+      model.type === 'directory'
+        ? this.model.isOpen(model.path)
+          ? 'directory:open'
+          : 'directory:closed'
+        : `file:${fileType?.name ?? 'default'}:${fileType?.iconClass ?? ''}`;
+
+    if (iconContainer && refs.lastIconKey !== iconKey) {
       if (model.type === 'directory' && this.model.isOpen(model.path)) {
         folderOpenIcon.element({
           container: iconContainer,
@@ -275,11 +284,15 @@ export class FileTreeRenderer extends DirListing.Renderer {
           stylesheet: 'listing'
         });
       }
+      refs.lastIconKey = iconKey;
     }
 
     // Use lightweight CSS indentation instead of injecting per-row vbar nodes.
     const depth = model.path.split('/').length - 1;
-    node.style.setProperty('--jp-unfold-depth', String(depth));
+    if (refs.lastDepth !== depth) {
+      node.style.setProperty('--jp-unfold-depth', String(depth));
+      refs.lastDepth = depth;
+    }
   }
 
   private model: FilterFileTreeBrowserModel;
