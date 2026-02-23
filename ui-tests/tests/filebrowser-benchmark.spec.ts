@@ -12,6 +12,7 @@ import {
 const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:8888';
 const SAMPLE_COUNT = Number(process.env.BENCHMARK_SAMPLE_COUNT ?? '3');
 const PARALLEL_USERS = Number(process.env.BENCHMARK_PARALLEL_USERS ?? '2');
+const VERBOSE = process.env.VERBOSE === '1';
 
 interface IScenario {
   key: '10' | '1000' | '10000';
@@ -45,6 +46,38 @@ interface IBenchmarkReport {
   };
 }
 
+function logVerbose(message: string): void {
+  if (!VERBOSE) {
+    return;
+  }
+  const timestamp = new Date().toISOString();
+  console.info(`[benchmark ${timestamp}] ${message}`);
+}
+
+function logProbeTimings(
+  userId: string,
+  headers: Record<string, string>,
+  bodyTimings?: unknown
+): void {
+  const treeMs = headers['x-jupyterlab-unfold-tree-ms'];
+  const encodeMs = headers['x-jupyterlab-unfold-encode-ms'];
+  const totalMs = headers['x-jupyterlab-unfold-total-ms'];
+  const itemCount = headers['x-jupyterlab-unfold-item-count'];
+  const listedDirs = headers['x-jupyterlab-unfold-listed-dirs'];
+
+  if (treeMs || encodeMs || totalMs || itemCount || listedDirs) {
+    logVerbose(
+      `[user:${userId}] probe timings headers tree_ms=${treeMs ?? 'n/a'} encode_ms=${encodeMs ?? 'n/a'} total_ms=${totalMs ?? 'n/a'} item_count=${itemCount ?? 'n/a'} listed_dirs=${listedDirs ?? 'n/a'}`
+    );
+  }
+
+  if (bodyTimings !== undefined) {
+    logVerbose(
+      `[user:${userId}] probe timings body=${JSON.stringify(bodyTimings)}`
+    );
+  }
+}
+
 function normalizeLabUrl(rawTarget: string): URL {
   const parsed = new URL(rawTarget);
   const token = parsed.searchParams.get('token');
@@ -61,8 +94,17 @@ function normalizeLabUrl(rawTarget: string): URL {
   return normalized;
 }
 
-function buildLabUrl(rawTarget: string, options?: { reset?: boolean }): string {
+function buildLabUrl(
+  rawTarget: string,
+  options?: { reset?: boolean; workspace?: string }
+): string {
   const labUrl = normalizeLabUrl(rawTarget);
+  if (options?.workspace) {
+    labUrl.pathname = labUrl.pathname.replace(
+      /\/lab\/?$/,
+      `/lab/workspaces/${encodeURIComponent(options.workspace)}`
+    );
+  }
   if (options?.reset) {
     labUrl.searchParams.set('reset', '');
   }
@@ -146,10 +188,30 @@ async function writeReport(
 
 async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> {
   const page = await context.newPage();
+  const userId = Math.random().toString(16).slice(2, 8);
+  const workspaceId = `unfold-bench-${userId}`;
   try {
+    logVerbose(`[user:${userId}] starting benchmark run`);
+    logVerbose(`[user:${userId}] probing ${buildTreeEndpointUrl(TARGET_URL)}`);
     const treeProbe = await page.request.post(buildTreeEndpointUrl(TARGET_URL), {
-      data: { path: '' }
+      data: {
+        path: '',
+        include_timings: VERBOSE
+      }
     });
+    logVerbose(
+      `[user:${userId}] server probe status=${treeProbe.status()} ok=${treeProbe.ok()}`
+    );
+    if (VERBOSE) {
+      let bodyTimings: unknown;
+      try {
+        const body = (await treeProbe.json()) as { timings?: unknown };
+        bodyTimings = body.timings;
+      } catch {
+        bodyTimings = undefined;
+      }
+      logProbeTimings(userId, treeProbe.headers(), bodyTimings);
+    }
     if (treeProbe.status() === 404) {
       throw new Error(
         `Server endpoint ${buildTreeEndpointUrl(
@@ -165,17 +227,43 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
     }
 
     const navigationStart = performance.now();
-    await page.goto(buildLabUrl(TARGET_URL, { reset: true }));
+    const navUrl = buildLabUrl(TARGET_URL, {
+      reset: true,
+      workspace: workspaceId
+    });
+    logVerbose(`[user:${userId}] navigating to ${navUrl}`);
+    await page.goto(navUrl);
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector(itemSelector('benchmark-tree'), {
-      state: 'visible'
+      state: 'visible',
+      timeout: 30_000
     });
     const firstFileBrowserDisplay = performance.now() - navigationStart;
+    logVerbose(
+      `[user:${userId}] first file browser display ${firstFileBrowserDisplay.toFixed(2)}ms`
+    );
 
+    logVerbose(`[user:${userId}] expanding benchmark-tree`);
     await page.click(itemSelector('benchmark-tree'));
-    await page.waitForSelector(itemSelector(SCENARIOS[0].folderName), {
-      state: 'visible'
-    });
+    try {
+      await page.waitForSelector(itemSelector(SCENARIOS[0].folderName), {
+        state: 'visible',
+        timeout: 30_000
+      });
+    } catch (error) {
+      const visibleTitles = await page.$$eval('.jp-DirListing-item', nodes =>
+        nodes
+          .slice(0, 20)
+          .map(node => node.getAttribute('title') ?? '<no-title>')
+      );
+      logVerbose(
+        `[user:${userId}] failed waiting for first benchmark folder; first visible entries=${JSON.stringify(
+          visibleTitles
+        )}`
+      );
+      throw error;
+    }
+    logVerbose(`[user:${userId}] benchmark-tree expanded`);
 
     const unfold: IRunTiming['unfold'] = {
       '10': 0,
@@ -194,26 +282,45 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
     };
 
     for (const scenario of SCENARIOS) {
+      logVerbose(`[user:${userId}] unfold start folder_${scenario.key}`);
       unfold[scenario.key] = await measureVisibilityTransition(
         page,
         scenario.folderName,
         scenario.firstItemName,
         'visible'
       );
+      logVerbose(
+        `[user:${userId}] unfold done folder_${scenario.key} ${unfold[
+          scenario.key
+        ].toFixed(2)}ms`
+      );
+      logVerbose(`[user:${userId}] fold start folder_${scenario.key}`);
       fold[scenario.key] = await measureVisibilityTransition(
         page,
         scenario.folderName,
         scenario.firstItemName,
         'hidden'
       );
+      logVerbose(
+        `[user:${userId}] fold done folder_${scenario.key} ${fold[
+          scenario.key
+        ].toFixed(2)}ms`
+      );
+      logVerbose(`[user:${userId}] re-show start folder_${scenario.key}`);
       reShow[scenario.key] = await measureVisibilityTransition(
         page,
         scenario.folderName,
         scenario.firstItemName,
         'visible'
       );
+      logVerbose(
+        `[user:${userId}] re-show done folder_${scenario.key} ${reShow[
+          scenario.key
+        ].toFixed(2)}ms`
+      );
     }
 
+    logVerbose(`[user:${userId}] benchmark run complete`);
     return {
       firstFileBrowserDisplay,
       unfold,
@@ -244,11 +351,18 @@ test.describe.serial('file browser benchmark', () => {
     testInfo
   ) => {
     test.setTimeout(10 * 60 * 1000);
+    logVerbose(
+      `benchmark start sampleCount=${SAMPLE_COUNT} parallelUsers=${PARALLEL_USERS} target=${TARGET_URL}`
+    );
 
     const runs: IRunTiming[] = [];
     for (let sampleIndex = 0; sampleIndex < SAMPLE_COUNT; sampleIndex += 1) {
+      logVerbose(`starting sample ${sampleIndex + 1}/${SAMPLE_COUNT}`);
       const sampleRuns = await runParallelSample(browser);
       runs.push(...sampleRuns);
+      logVerbose(
+        `completed sample ${sampleIndex + 1}/${SAMPLE_COUNT}; accumulatedRuns=${runs.length}`
+      );
     }
 
     const report: IBenchmarkReport = {
@@ -279,6 +393,11 @@ test.describe.serial('file browser benchmark', () => {
     };
 
     await writeReport(report, testInfo);
+    logVerbose(
+      `benchmark report written firstDisplayMean=${report.summaryMs.firstFileBrowserDisplay.mean.toFixed(
+        2
+      )}ms`
+    );
 
     expect(runs.length).toBe(SAMPLE_COUNT * PARALLEL_USERS);
     expect(report.summaryMs.firstFileBrowserDisplay.mean).toBeGreaterThan(0);

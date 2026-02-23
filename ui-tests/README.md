@@ -50,6 +50,49 @@ will be opened in your browser at the end of the tests execution; see
 [Playwright documentation](https://playwright.dev/docs/test-reporters#html-reporter)
 for configuring that behavior.
 
+## Benchmark Harness
+
+The benchmark harness lives in `tests/filebrowser-benchmark.spec.ts` and is run with:
+
+```sh
+cd ./ui-tests
+jlpm bench:filebrowser
+```
+
+### Environment variables
+
+- `TARGET_URL`: point tests to an already-running JupyterLab, for example
+  `http://localhost:8888/lab?token=...`.
+  - When set, Playwright does **not** start its own `webServer`.
+- `BENCHMARK_SAMPLE_COUNT`: number of sequential benchmark samples (default `3`).
+- `BENCHMARK_PARALLEL_USERS`: number of concurrent browser contexts per sample (default `2`).
+- `VERBOSE=1`: enables detailed progress logs for each benchmark step and server probe timing headers.
+
+### Examples
+
+Run defaults against managed local server:
+
+```sh
+cd ./ui-tests
+jlpm bench:filebrowser
+```
+
+Run against pre-started server with verbose output:
+
+```sh
+cd ./ui-tests
+VERBOSE=1 TARGET_URL='http://localhost:8888/lab?token=...' jlpm bench:filebrowser
+```
+
+Run a smaller quick check:
+
+```sh
+cd ./ui-tests
+BENCHMARK_SAMPLE_COUNT=1 BENCHMARK_PARALLEL_USERS=1 jlpm bench:filebrowser
+```
+
+Benchmark output is written to `benchmark-results/filebrowser.json`.
+
 ## Update the tests snapshots
 
 > All commands are assumed to be executed from the root directory

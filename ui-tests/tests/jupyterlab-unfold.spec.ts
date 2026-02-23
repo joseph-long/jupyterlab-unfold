@@ -4,6 +4,22 @@ const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:8888';
 const TREE_LOCATOR = '.jp-DirListing-content';
 const TABS_LOCATOR = '.lm-DockPanel-tabBar';
 
+function buildLabUrl(rawTarget: string): string {
+  const parsed = new URL(rawTarget);
+  const token = parsed.searchParams.get('token');
+
+  const normalized = new URL(parsed.origin);
+  normalized.pathname = parsed.pathname.includes('/lab')
+    ? parsed.pathname
+    : `${parsed.pathname.replace(/\/$/, '')}/lab`;
+
+  if (token) {
+    normalized.searchParams.set('token', token);
+  }
+
+  return normalized.toString();
+}
+
 // This seems to be more robust than the page.locator('text=name')
 function item(name: string) {
   return `.jp-DirListing-item[title^="Name: ${name}"]`;
@@ -26,7 +42,7 @@ test.describe.serial('jupyterlab-unfold', () => {
       }
     });
 
-    await page.goto(`${TARGET_URL}/lab`);
+    await page.goto(buildLabUrl(TARGET_URL));
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector('div[role="main"] >> text=Launcher');
 
@@ -104,7 +120,7 @@ test.describe.serial('jupyterlab-unfold', () => {
       }
     });
 
-    await page.goto(`${TARGET_URL}/lab`);
+    await page.goto(buildLabUrl(TARGET_URL));
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector('div[role="main"] >> text=Launcher');
 

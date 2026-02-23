@@ -2,16 +2,23 @@
  * Configuration for benchmark Playwright tests.
  */
 const baseConfig = require('./playwright.config');
+const hasExternalTarget = Boolean(process.env.TARGET_URL);
 
 module.exports = {
   ...baseConfig,
   testMatch: ['tests/filebrowser-benchmark.spec.ts'],
   reporter: process.env.CI ? 'dot' : 'list',
-  webServer: {
-    command: 'jlpm start:bench',
-    url: 'http://localhost:8888/lab',
-    timeout: 120 * 1000,
-    reuseExistingServer: false
-  },
+  webServer: hasExternalTarget
+    ? undefined
+    : {
+        command: 'jlpm start:bench',
+        url: 'http://localhost:8888/lab',
+        timeout: 120 * 1000,
+        reuseExistingServer: false,
+        gracefulShutdown: {
+          signal: 'SIGINT',
+          timeout: 15 * 1000
+        }
+      },
   workers: 1
 };
