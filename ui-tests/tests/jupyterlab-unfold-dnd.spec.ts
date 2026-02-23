@@ -53,6 +53,25 @@ function byPath(path: string): string {
   return `.jp-DirListing-item[data-path="${path}"]`;
 }
 
+async function withRequestRetry<T>(
+  operation: () => Promise<T>,
+  attempts = 3
+): Promise<T> {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts) {
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, attempt * 50));
+    }
+  }
+  throw lastError;
+}
+
 async function isRowVisibleInContainer(
   page: Page,
   path: string,
@@ -131,6 +150,30 @@ async function materializeRow(
   throw new Error(`Could not materialize row for path "${path}"`);
 }
 
+async function ensureFolderExpanded(
+  page: Page,
+  folderPath: string,
+  expectedChildPath: string
+): Promise<void> {
+  await materializeRow(page, folderPath, { resetToTop: true, maxScrollSteps: 120 });
+  const child = page.locator(byPath(expectedChildPath)).first();
+  if ((await child.count()) > 0 && (await child.isVisible().catch(() => false))) {
+    return;
+  }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.click(byPath(folderPath));
+    try {
+      await child.waitFor({ state: 'visible', timeout: 8_000 });
+      return;
+    } catch {
+      // Retry by toggling again if virtualization delayed materialization.
+    }
+  }
+  throw new Error(
+    `Could not expand folder "${folderPath}" to show "${expectedChildPath}"`
+  );
+}
+
 async function ensureWorkspaceMock(page: Page): Promise<void> {
   logVerbose('installing workspace API mock');
   let workspace = { data: {}, metadata: { id: 'default' } };
@@ -180,7 +223,9 @@ async function deletePath(page: Page, path: string): Promise<void> {
 }
 
 async function pathExists(page: Page, path: string): Promise<boolean> {
-  const response = await page.request.get(buildContentsApiUrl(TARGET_URL, path));
+  const response = await withRequestRetry(() =>
+    page.request.get(buildContentsApiUrl(TARGET_URL, path))
+  );
   return response.status() === 200;
 }
 
@@ -208,8 +253,8 @@ async function dragBetween(page: Page, sourcePath: string, targetPath: string): 
 }
 
 async function openFixtureRoot(page: Page): Promise<void> {
-  await page.waitForSelector(byPath(fixtureRoot), { state: 'visible', timeout: 30_000 });
-  await page.click(byPath(fixtureRoot));
+  await page.hover(byPath(fixtureRoot));
+  await ensureFolderExpanded(page, fixtureRoot, prefixPath(fixtureRoot, 'dir1'));
 }
 
 test.describe.serial('jupyterlab-unfold drag and drop', () => {
@@ -234,7 +279,7 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await page.waitForSelector(byPath(sourcePath), { state: 'visible' });
+    await materializeRow(page, sourcePath, { resetToTop: true, maxScrollSteps: 180 });
 
     await dragBetween(page, sourcePath, prefixPath(fixtureRoot, 'dir2'));
 
@@ -260,7 +305,10 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await page.waitForSelector(byPath(sourcePath), { state: 'visible' });
+    await materializeRow(page, sourcePath, { resetToTop: true, maxScrollSteps: 180 });
+    await materializeRow(page, prefixPath(fixtureRoot, 'dir2'), {
+      maxScrollSteps: 180
+    });
 
     const source = page.locator(byPath(sourcePath)).first();
     const dir2 = page.locator(byPath(prefixPath(fixtureRoot, 'dir2'))).first();
@@ -325,7 +373,10 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await page.waitForSelector(byPath(sourcePath), { state: 'visible' });
+    await materializeRow(page, sourcePath, { resetToTop: true, maxScrollSteps: 180 });
+    await materializeRow(page, prefixPath(fixtureRoot, 'dir2'), {
+      maxScrollSteps: 180
+    });
 
     const source = page.locator(byPath(sourcePath)).first();
     const dir2 = page.locator(byPath(prefixPath(fixtureRoot, 'dir2'))).first();
@@ -368,21 +419,17 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     const sourcePath = `${largeFolder}/f10000-item-00001.txt`;
 
     await ensureWorkspaceMock(page);
-    const hasLargeFolder = await pathExists(page, largeFolder);
-    test.skip(!hasLargeFolder, 'benchmark-tree/folder_10000 is not available');
-    logVerbose(`benchmark large folder present=${hasLargeFolder}`);
 
     await page.goto(buildLabUrl(TARGET_URL));
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await materializeRow(page, prefixPath(fixtureRoot, 'benchmark-tree'), {
-      resetToTop: true
-    });
-    await page.click(byPath(prefixPath(fixtureRoot, 'benchmark-tree')));
-    await materializeRow(page, largeFolder, { resetToTop: true });
-    await page.click(byPath(largeFolder));
-    await materializeRow(page, sourcePath, { resetToTop: true });
+    await ensureFolderExpanded(
+      page,
+      prefixPath(fixtureRoot, 'benchmark-tree'),
+      largeFolder
+    );
+    await ensureFolderExpanded(page, largeFolder, sourcePath);
     logVerbose('expanded benchmark-tree/folder_10000');
 
     const content = page.locator('.jp-DirListing-content').first();

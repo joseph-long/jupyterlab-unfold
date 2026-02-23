@@ -330,9 +330,16 @@ export class DirTreeListing extends DirListing {
   }
 
   protected onUpdateRequest(msg: Message): void {
-    if (!this.shouldVirtualize()) {
+    const latestItems = toArray(this.model.items());
+    if (latestItems.length > 0) {
+      this._lastNonEmptyItems = latestItems;
+    }
+    const allItems =
+      latestItems.length > 0 ? latestItems : this._lastNonEmptyItems;
+
+    if (!this.shouldVirtualize(allItems.length)) {
       this.clearVirtualSpacers();
-      this._virtualVisibleItems = toArray(this.model.items());
+      this._virtualVisibleItems = allItems;
       this._virtualRangeStart = 0;
       super.onUpdateRequest(msg);
       return;
@@ -340,8 +347,6 @@ export class DirTreeListing extends DirListing {
 
     // @ts-ignore private fields from DirListing
     this._isDirty = false;
-    // @ts-ignore private fields from DirListing
-    const allItems = this._sortedItems as Contents.IModel[];
     // @ts-ignore private fields from DirListing
     const nodes = this._items as HTMLElement[];
     // @ts-ignore private fields from DirListing
@@ -397,10 +402,10 @@ export class DirTreeListing extends DirListing {
       }
     });
 
-    // Keep sortedItems aligned with visible window so DirListing's
-    // index-based interactions (selection/drag) map to mounted rows.
+    // Keep sortedItems as the full model list so any fallback update path
+    // still has complete item metadata.
     // @ts-ignore private field from DirListing
-    this._sortedItems = visibleItems;
+    this._sortedItems = allItems;
     // @ts-ignore private/protected visibility mismatch in extension context
     this.updateNodes(visibleItems, nodes);
 
@@ -579,7 +584,10 @@ export class DirTreeListing extends DirListing {
         break;
       case 'scroll':
         if (this.shouldVirtualize()) {
-          this.scheduleVirtualUpdate();
+          const scrollTarget = event.target as EventTarget | null;
+          if (scrollTarget === this.contentNode) {
+            this.scheduleVirtualUpdate();
+          }
         }
         super.handleEvent(event);
         break;
@@ -604,6 +612,7 @@ export class DirTreeListing extends DirListing {
   private _lastRange = { start: -1, end: -1 };
   private _virtualRangeStart = 0;
   private _virtualVisibleItems: Contents.IModel[] = [];
+  private _lastNonEmptyItems: Contents.IModel[] = [];
   private _virtualUpdateRaf = 0;
   private _dragInProgress = false;
   private _activeDropTargetPath: string | null = null;
@@ -615,24 +624,40 @@ export class DirTreeListing extends DirListing {
   private _edgePointerClientX = 0;
   private _edgePointerClientY = 0;
 
-  private shouldVirtualize(): boolean {
-    return toArray(this.model.items()).length >= this._virtualizationThreshold;
+  private shouldVirtualize(itemCount?: number): boolean {
+    const count =
+      itemCount ??
+      Math.max(toArray(this.model.items()).length, this._lastNonEmptyItems.length);
+    return count >= this._virtualizationThreshold;
   }
 
   private computeVisibleRange(totalItems: number): { start: number; end: number } {
+    if (totalItems <= 0) {
+      this._lastRange = { start: 0, end: 0 };
+      return this._lastRange;
+    }
+
     const content = this.contentNode;
-    const viewportHeight = Math.max(content.clientHeight, this._virtualRowHeight);
+    const viewportHeight = Math.max(
+      content.clientHeight,
+      this._virtualRowHeight
+    );
     const visibleRows = Math.max(
       this._virtualMinRows,
       Math.ceil(viewportHeight / this._virtualRowHeight)
     );
     const scrollTop = Math.max(0, content.scrollTop);
-    const firstVisible = Math.floor(scrollTop / this._virtualRowHeight);
+    const maxFirstVisible = Math.max(0, totalItems - 1);
+    const firstVisible = Math.min(
+      maxFirstVisible,
+      Math.floor(scrollTop / this._virtualRowHeight)
+    );
     const start = Math.max(0, firstVisible - this._virtualOverscanRows);
-    const end = Math.min(
+    const unclampedEnd = Math.min(
       totalItems,
       firstVisible + visibleRows + this._virtualOverscanRows
     );
+    const end = Math.max(start + 1, unclampedEnd);
     if (this._lastRange.start === start && this._lastRange.end === end) {
       return this._lastRange;
     }

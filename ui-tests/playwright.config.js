@@ -6,6 +6,31 @@ const hasExternalTarget = Boolean(process.env.TARGET_URL);
 
 const config = {
   ...baseConfig,
+  timeout: 180 * 1000,
+  retries: 1,
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...(baseConfig.use ?? {}),
+        browserName: 'chromium'
+      }
+    },
+    {
+      name: 'firefox',
+      use: {
+        ...(baseConfig.use ?? {}),
+        browserName: 'firefox'
+      }
+    },
+    {
+      name: 'webkit',
+      use: {
+        ...(baseConfig.use ?? {}),
+        browserName: 'webkit'
+      }
+    }
+  ],
   webServer: hasExternalTarget
     ? undefined
     : {

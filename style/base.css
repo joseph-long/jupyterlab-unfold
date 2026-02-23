@@ -6,8 +6,6 @@
   flex-grow: 1;
   display: flex;
   padding-left: calc(var(--jp-unfold-depth, 0) * var(--indent));
-  content-visibility: auto;
-  contain-intrinsic-size: 24px;
 }
 
 .jp-DirListing-itemName {
@@ -23,4 +21,8 @@
   margin: 0;
   padding: 0;
   pointer-events: none;
+}
+
+.jp-mod-unfold-virtualized .jp-DirListing-content {
+  overflow-anchor: none;
 }
