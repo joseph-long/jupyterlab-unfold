@@ -5,6 +5,7 @@ import {
   expect,
   type Browser,
   type BrowserContext,
+  type Locator,
   type Page,
   type TestInfo
 } from '@playwright/test';
@@ -18,6 +19,8 @@ interface IScenario {
   key: '10' | '1000' | '10000';
   folderName: string;
   firstItemName: string;
+  folderPath: string;
+  firstItemPath: string;
 }
 
 interface IRunTiming {
@@ -196,22 +199,28 @@ const SCENARIOS: IScenario[] = [
   {
     key: '10',
     folderName: 'folder_00010',
-    firstItemName: 'f10-item-00000.txt'
+    firstItemName: 'f10-item-00000.txt',
+    folderPath: 'benchmark-tree/folder_00010',
+    firstItemPath: 'benchmark-tree/folder_00010/f10-item-00000.txt'
   },
   {
     key: '1000',
     folderName: 'folder_01000',
-    firstItemName: 'f1000-item-00000.txt'
+    firstItemName: 'f1000-item-00000.txt',
+    folderPath: 'benchmark-tree/folder_01000',
+    firstItemPath: 'benchmark-tree/folder_01000/f1000-item-00000.txt'
   },
   {
     key: '10000',
     folderName: 'folder_10000',
-    firstItemName: 'f10000-item-00000.txt'
+    firstItemName: 'f10000-item-00000.txt',
+    folderPath: 'benchmark-tree/folder_10000',
+    firstItemPath: 'benchmark-tree/folder_10000/f10000-item-00000.txt'
   }
 ];
 
-function itemSelector(name: string): string {
-  return `.jp-DirListing-item[title^="Name: ${name}"]`;
+function itemSelector(path: string): string {
+  return `.jp-DirListing-item[data-path="${path}"]`;
 }
 
 function summarize(values: number[]): IBenchmarkSummary {
@@ -332,21 +341,134 @@ async function measureVisibilityTransition(
   page: Page,
   userId: string,
   stepLabel: string,
-  folderName: string,
-  itemName: string,
+  folderPath: string,
+  itemPath: string,
   targetState: 'visible' | 'hidden'
 ): Promise<ITransitionMeasurement> {
-  const treeResponsePromise = page.waitForResponse(
-    response =>
-      response.url().includes('/jupyterlab-unfold/tree') &&
-      response.request().method() === 'POST',
-    { timeout: 30_000 }
-  );
-  const startTime = performance.now();
-  await page.click(itemSelector(folderName));
-  const treeResponse = await treeResponsePromise;
+  const contentSelector = '.jp-DirListing-content';
+  const isRowVisibleInContainer = async (path: string): Promise<boolean> => {
+    const rowSelector = itemSelector(path);
+    return page.evaluate(
+      ({ rowSelector, contentSelector }) => {
+        const row = document.querySelector(rowSelector) as HTMLElement | null;
+        const content = document.querySelector(
+          contentSelector
+        ) as HTMLElement | null;
+        if (!row || !content) {
+          return false;
+        }
+        const rowRect = row.getBoundingClientRect();
+        const contentRect = content.getBoundingClientRect();
+        const verticalOverlap =
+          Math.min(rowRect.bottom, contentRect.bottom) -
+          Math.max(rowRect.top, contentRect.top);
+        const hasHorizontalOverlap =
+          rowRect.right > contentRect.left && rowRect.left < contentRect.right;
+        return verticalOverlap >= Math.min(16, rowRect.height * 0.5) &&
+          hasHorizontalOverlap;
+      },
+      { rowSelector, contentSelector }
+    );
+  };
+
+  const waitForMaterializedVisibleRow = async (
+    path: string,
+    maxScrollSteps = 80
+  ): Promise<Locator> => {
+    const contentLocator = page.locator(contentSelector).first();
+    await contentLocator.waitFor({ state: 'visible', timeout: 5_000 });
+
+    // Emulate user behavior: start from the top and scroll until the row is
+    // materialized by virtualization and visible.
+    await contentLocator.evaluate(node => {
+      node.scrollTop = 0;
+    });
+    await page.waitForTimeout(10);
+
+    for (let step = 0; step < maxScrollSteps; step += 1) {
+      const rowLocator = page.locator(itemSelector(path)).first();
+      const rowCount = await rowLocator.count();
+      if (rowCount > 0) {
+        await page.waitForTimeout(10);
+        const inViewport = await isRowVisibleInContainer(path);
+        if (inViewport) {
+          // Check one more frame so we don't click a row that's about to be
+          // recycled by virtualization.
+          await page.waitForTimeout(10);
+          if (await isRowVisibleInContainer(path)) {
+            await rowLocator.scrollIntoViewIfNeeded();
+            await page.waitForTimeout(10);
+            if (await isRowVisibleInContainer(path)) {
+              return rowLocator;
+            }
+          }
+        }
+      }
+
+      const canScrollDown = await contentLocator.evaluate(
+        node => node.scrollTop + node.clientHeight < node.scrollHeight - 1
+      );
+      if (!canScrollDown) {
+        const rowCountAtEnd = await page.locator(itemSelector(path)).count();
+        if (rowCountAtEnd > 0 && (await isRowVisibleInContainer(path))) {
+          return rowLocator;
+        }
+        break;
+      }
+
+      await contentLocator.evaluate((node, delta) => {
+        node.scrollTop = Math.min(
+          node.scrollHeight,
+          Math.max(0, node.scrollTop + delta)
+        );
+      }, 120);
+      await page.waitForTimeout(10);
+    }
+
+    throw new Error(
+      `${stepLabel} failed: could not materialize row for path "${path}" in the virtualized list`
+    );
+  };
+
+  await waitForMaterializedVisibleRow(folderPath);
+
+  let treeResponse:
+    | Awaited<ReturnType<Page['waitForResponse']>>
+    | undefined = undefined;
+  let startTime = 0;
+  let clickAttempts = 0;
+  const maxClickAttempts = 3;
+  while (!treeResponse && clickAttempts < maxClickAttempts) {
+    clickAttempts += 1;
+    const folderLocator = await waitForMaterializedVisibleRow(folderPath);
+
+    const treeResponsePromise = page.waitForResponse(
+      response =>
+        response.url().includes('/jupyterlab-unfold/tree') &&
+        response.request().method() === 'POST',
+      { timeout: 5_000 }
+    );
+    startTime = performance.now();
+    await folderLocator.click({ timeout: 5_000 });
+    try {
+      treeResponse = await treeResponsePromise;
+    } catch {
+      if (VERBOSE) {
+        logVerbose(
+          `[user:${userId}] ${stepLabel} click attempt ${clickAttempts}/${maxClickAttempts} did not trigger tree request; retrying`
+        );
+      }
+    }
+  }
+
+  if (!treeResponse) {
+    throw new Error(
+      `${stepLabel} failed: click did not trigger /jupyterlab-unfold/tree after ${maxClickAttempts} attempts`
+    );
+  }
+
   const responseTime = performance.now();
-  await page.waitForSelector(itemSelector(itemName), { state: targetState });
+  await page.waitForSelector(itemSelector(itemPath), { state: targetState });
   const endTime = performance.now();
   const elapsedMs = endTime - startTime;
   const clickToResponseMs = responseTime - startTime;
@@ -512,7 +634,7 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
     logVerbose(`[user:${userId}] expanding benchmark-tree`);
     await page.click(itemSelector('benchmark-tree'));
     try {
-      await page.waitForSelector(itemSelector(SCENARIOS[0].folderName), {
+      await page.waitForSelector(itemSelector(SCENARIOS[0].folderPath), {
         state: 'visible',
         timeout: 30_000
       });
@@ -570,8 +692,8 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
         page,
         userId,
         `unfold folder_${scenario.key}`,
-        scenario.folderName,
-        scenario.firstItemName,
+        scenario.folderPath,
+        scenario.firstItemPath,
         'visible'
       );
       unfold[scenario.key] = unfoldMeasurement.elapsedMs;
@@ -586,8 +708,8 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
         page,
         userId,
         `fold folder_${scenario.key}`,
-        scenario.folderName,
-        scenario.firstItemName,
+        scenario.folderPath,
+        scenario.firstItemPath,
         'hidden'
       );
       fold[scenario.key] = foldMeasurement.elapsedMs;
@@ -602,8 +724,8 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
         page,
         userId,
         `re-show folder_${scenario.key}`,
-        scenario.folderName,
-        scenario.firstItemName,
+        scenario.folderPath,
+        scenario.firstItemPath,
         'visible'
       );
       reShow[scenario.key] = reShowMeasurement.elapsedMs;
@@ -613,6 +735,16 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
           scenario.key
         ].toFixed(2)}ms`
       );
+      logVerbose(`[user:${userId}] cleanup fold start folder_${scenario.key}`);
+      await measureVisibilityTransition(
+        page,
+        userId,
+        `cleanup fold folder_${scenario.key}`,
+        scenario.folderPath,
+        scenario.firstItemPath,
+        'hidden'
+      );
+      logVerbose(`[user:${userId}] cleanup fold done folder_${scenario.key}`);
     }
 
     logVerbose(`[user:${userId}] benchmark run complete`);

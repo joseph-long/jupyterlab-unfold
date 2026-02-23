@@ -17,3 +17,10 @@
 .jp-DirListing-item.jp-mod-running .jp-DirListing-itemIcon::before {
   left: -2px;
 }
+
+.jp-unfold-virtual-spacer {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}

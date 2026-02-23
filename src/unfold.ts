@@ -7,6 +7,7 @@ import { ArrayExt, toArray } from '@lumino/algorithm';
 import { ElementExt } from '@lumino/domutils';
 
 import { PromiseDelegate, ReadonlyJSONObject } from '@lumino/coreutils';
+import { Message } from '@lumino/messaging';
 
 import { Signal } from '@lumino/signaling';
 
@@ -255,6 +256,7 @@ export class FileTreeRenderer extends DirListing.Renderer {
       'data-file-type',
       model.type === 'directory' ? 'directory' : 'file'
     );
+    node.setAttribute('data-path', model.path);
     if (model.name.startsWith('.')) {
       node.setAttribute('data-is-dot', 'true');
     } else {
@@ -305,6 +307,7 @@ export class FileTreeRenderer extends DirListing.Renderer {
 export class DirTreeListing extends DirListing {
   constructor(options: DirTreeListing.IOptions) {
     super({ ...options, renderer: new FileTreeRenderer(options.model) });
+    this.addClass('jp-mod-unfold-virtualized');
   }
 
   set singleClickToUnfold(value: boolean) {
@@ -323,13 +326,94 @@ export class DirTreeListing extends DirListing {
     this.update();
   }
 
+  protected onUpdateRequest(msg: Message): void {
+    if (!this.shouldVirtualize()) {
+      this.clearVirtualSpacers();
+      this._virtualVisibleItems = toArray(this.model.items());
+      this._virtualRangeStart = 0;
+      super.onUpdateRequest(msg);
+      return;
+    }
+
+    // @ts-ignore private fields from DirListing
+    this._isDirty = false;
+    // @ts-ignore private fields from DirListing
+    const allItems = this._sortedItems as Contents.IModel[];
+    // @ts-ignore private fields from DirListing
+    const nodes = this._items as HTMLElement[];
+    // @ts-ignore private fields from DirListing
+    const renderer = this._renderer as DirListing.IRenderer;
+    const content = this.contentNode;
+
+    const range = this.computeVisibleRange(allItems.length);
+    const visibleItems = allItems.slice(range.start, range.end);
+    this._virtualRangeStart = range.start;
+    this._virtualVisibleItems = visibleItems;
+    const topPx = range.start * this._virtualRowHeight;
+    const bottomPx =
+      Math.max(0, allItems.length - range.end) * this._virtualRowHeight;
+    this.applyVirtualSpacers(topPx, bottomPx);
+
+    while (nodes.length > visibleItems.length) {
+      content.removeChild(nodes.pop()!);
+    }
+
+    while (nodes.length < visibleItems.length) {
+      // @ts-ignore signature variations across JupyterLab versions
+      const node = renderer.createItemNode(this._hiddenColumns, this._columnSizes);
+      node.classList.add('jp-DirListing-item');
+      nodes.push(node);
+      if (this._bottomSpacer?.parentElement === content) {
+        content.insertBefore(node, this._bottomSpacer);
+      } else {
+        content.appendChild(node);
+      }
+    }
+
+    nodes.forEach((node, i) => {
+      node.classList.remove('jp-mod-selected');
+      node.classList.remove('jp-mod-running');
+      node.classList.remove('jp-mod-cut');
+
+      const checkbox = renderer.getCheckboxNode(node);
+      if (checkbox) {
+        checkbox.checked = false;
+      }
+
+      const nameNode = renderer.getNameNode(node);
+      if (!nameNode) {
+        return;
+      }
+      // @ts-ignore private focus index
+      if (i + range.start === this._focusIndex) {
+        nameNode.setAttribute('tabIndex', '0');
+        nameNode.setAttribute('role', 'button');
+      } else {
+        nameNode.setAttribute('tabIndex', '-1');
+        nameNode.removeAttribute('role');
+      }
+    });
+
+    // @ts-ignore private field from DirListing
+    const original = this._sortedItems as Contents.IModel[];
+    // @ts-ignore private field from DirListing
+    this._sortedItems = visibleItems;
+    // @ts-ignore private/protected visibility mismatch in extension context
+    this.updateNodes(visibleItems, nodes);
+    // @ts-ignore private field from DirListing
+    this._sortedItems = original;
+
+    // @ts-ignore private field from DirListing
+    this._prevPath = this._model.path;
+  }
+
   get model(): FilterFileTreeBrowserModel {
     // @ts-ignore
     return this._model;
   }
 
   private async _eventDblClick(event: MouseEvent): Promise<void> {
-    const entry = this.modelForClick(event);
+    const entry = this.entryForClick(event);
 
     if (entry?.type === 'directory') {
       if (!this._singleClickToUnfold) {
@@ -414,7 +498,10 @@ export class DirTreeListing extends DirListing {
     let newDir: string;
 
     if (index !== -1) {
-      const item = toArray(this.model.items())[index];
+      const virtualIndex = index + this._virtualRangeStart;
+      const item =
+        this._virtualVisibleItems[index] ??
+        toArray(this.model.items())[virtualIndex];
 
       if (item.type === 'directory') {
         newDir = item.path;
@@ -468,7 +555,7 @@ export class DirTreeListing extends DirListing {
    * is clicking on an empty space.
    */
   private _eventMouseDown(event: MouseEvent): void {
-    const entry = this.modelForClick(event);
+    const entry = this.entryForClick(event);
 
     if (entry) {
       if (entry.type === 'directory') {
@@ -513,8 +600,16 @@ export class DirTreeListing extends DirListing {
         this._eventDrop(event as IDragEvent);
         break;
       case 'mousedown':
-        super.handleEvent(event);
+        if (!this.shouldVirtualize()) {
+          super.handleEvent(event);
+        }
         this._eventMouseDown(event as MouseEvent);
+        break;
+      case 'scroll':
+        if (this.shouldVirtualize()) {
+          this.scheduleVirtualUpdate();
+        }
+        super.handleEvent(event);
         break;
       default:
         super.handleEvent(event);
@@ -523,6 +618,111 @@ export class DirTreeListing extends DirListing {
   }
 
   private _singleClickToUnfold = true;
+  private _virtualizationThreshold = 2500;
+  private _virtualRowHeight = 24;
+  private _virtualOverscanRows = 80;
+  private _virtualMinRows = 200;
+  private _topSpacer: HTMLElement | null = null;
+  private _bottomSpacer: HTMLElement | null = null;
+  private _lastRange = { start: -1, end: -1 };
+  private _virtualRangeStart = 0;
+  private _virtualVisibleItems: Contents.IModel[] = [];
+  private _virtualUpdateRaf = 0;
+
+  private shouldVirtualize(): boolean {
+    return toArray(this.model.items()).length >= this._virtualizationThreshold;
+  }
+
+  private computeVisibleRange(totalItems: number): { start: number; end: number } {
+    const content = this.contentNode;
+    const viewportHeight = Math.max(content.clientHeight, this._virtualRowHeight);
+    const visibleRows = Math.max(
+      this._virtualMinRows,
+      Math.ceil(viewportHeight / this._virtualRowHeight)
+    );
+    const scrollTop = Math.max(0, content.scrollTop);
+    const firstVisible = Math.floor(scrollTop / this._virtualRowHeight);
+    const start = Math.max(0, firstVisible - this._virtualOverscanRows);
+    const end = Math.min(
+      totalItems,
+      firstVisible + visibleRows + this._virtualOverscanRows
+    );
+    if (this._lastRange.start === start && this._lastRange.end === end) {
+      return this._lastRange;
+    }
+    this._lastRange = { start, end };
+    return this._lastRange;
+  }
+
+  private applyVirtualSpacers(topPx: number, bottomPx: number): void {
+    const content = this.contentNode;
+    if (!this._topSpacer) {
+      this._topSpacer = document.createElement('li');
+      this._topSpacer.className = 'jp-unfold-virtual-spacer';
+    }
+    if (!this._bottomSpacer) {
+      this._bottomSpacer = document.createElement('li');
+      this._bottomSpacer.className = 'jp-unfold-virtual-spacer';
+    }
+
+    this._topSpacer.style.height = `${Math.max(0, topPx)}px`;
+    this._bottomSpacer.style.height = `${Math.max(0, bottomPx)}px`;
+    content.insertBefore(this._topSpacer, content.firstChild);
+    content.appendChild(this._bottomSpacer);
+  }
+
+  private clearVirtualSpacers(): void {
+    if (this._topSpacer?.parentElement) {
+      this._topSpacer.parentElement.removeChild(this._topSpacer);
+    }
+    if (this._bottomSpacer?.parentElement) {
+      this._bottomSpacer.parentElement.removeChild(this._bottomSpacer);
+    }
+    this._lastRange = { start: -1, end: -1 };
+    this._virtualRangeStart = 0;
+    this.cancelVirtualUpdate();
+  }
+
+  private entryForClick(event: MouseEvent): Contents.IModel | null {
+    const target = event.target as HTMLElement | null;
+    const row = target?.closest('.jp-DirListing-item') as HTMLElement | null;
+    const rowPath = row?.getAttribute('data-path');
+    if (rowPath) {
+      const matched = toArray(this.model.items()).find(item => item.path === rowPath);
+      if (matched) {
+        return matched;
+      }
+    }
+
+    if (!this.shouldVirtualize()) {
+      return this.modelForClick(event) ?? null;
+    }
+    return null;
+  }
+
+  private scheduleVirtualUpdate(): void {
+    if (this._virtualUpdateRaf !== 0) {
+      return;
+    }
+    this._virtualUpdateRaf = window.requestAnimationFrame(() => {
+      this._virtualUpdateRaf = 0;
+      const allItems = toArray(this.model.items());
+      const nextRange = this.computeVisibleRange(allItems.length);
+      if (
+        nextRange.start !== this._virtualRangeStart ||
+        nextRange.end !== this._virtualRangeStart + this._virtualVisibleItems.length
+      ) {
+        this.update();
+      }
+    });
+  }
+
+  private cancelVirtualUpdate(): void {
+    if (this._virtualUpdateRaf !== 0) {
+      window.cancelAnimationFrame(this._virtualUpdateRaf);
+      this._virtualUpdateRaf = 0;
+    }
+  }
 }
 
 /**
