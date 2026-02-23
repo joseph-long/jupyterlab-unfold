@@ -192,22 +192,55 @@ export class FileTreeRenderer extends DirListing.Renderer {
     hiddenColumns?: Set<DirListing.ToggleableColumn>,
     selected?: boolean
   ): void {
-    super.updateItemNode(
+    if (selected) {
+      node.classList.add('jp-mod-selected');
+    } else {
+      node.classList.remove('jp-mod-selected');
+    }
+
+    const iconContainer = DOMUtils.findElement(node, 'jp-DirListing-itemIcon');
+    const textContainer = DOMUtils.findElement(node, 'jp-DirListing-itemText');
+    const modifiedContainer = DOMUtils.findElement(
       node,
-      model,
-      fileType,
-      translator,
-      hiddenColumns,
-      selected
+      'jp-DirListing-itemModified'
+    );
+    const fileSizeContainer = DOMUtils.findElement(
+      node,
+      'jp-DirListing-itemFileSize'
     );
 
-    if (model.type === 'directory' && this.model.isOpen(model.path)) {
-      const iconContainer = DOMUtils.findElement(
-        node,
-        'jp-DirListing-itemIcon'
-      );
+    if (textContainer) {
+      textContainer.textContent = model.name;
+    }
+    if (modifiedContainer) {
+      modifiedContainer.textContent = '';
+      modifiedContainer.title = '';
+    }
+    if (fileSizeContainer) {
+      fileSizeContainer.textContent = '';
+    }
 
+    node.title = `Name: ${model.name}`;
+    node.setAttribute(
+      'data-file-type',
+      model.type === 'directory' ? 'directory' : 'file'
+    );
+    if (model.name.startsWith('.')) {
+      node.setAttribute('data-is-dot', 'true');
+    } else {
+      node.removeAttribute('data-is-dot');
+    }
+
+    if (model.type === 'directory' && this.model.isOpen(model.path)) {
       folderOpenIcon.element({
+        container: iconContainer,
+        className: 'jp-DirListing-itemIcon',
+        stylesheet: 'listing'
+      });
+    } else {
+      LabIcon.resolveElement({
+        icon: fileType?.icon,
+        iconClass: fileType?.iconClass,
         container: iconContainer,
         className: 'jp-DirListing-itemIcon',
         stylesheet: 'listing'
