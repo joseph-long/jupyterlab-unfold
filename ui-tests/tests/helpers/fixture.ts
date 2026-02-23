@@ -1,16 +1,10 @@
 import fs from 'fs';
 import path from 'path';
+import { createBenchmarkTreeInDirectory } from '../../scripts/benchmark-tree-common';
 
 const SCRATCH_ROOT = path.resolve(__dirname, '..', '..', 'scratch');
 const GENERATED_FIXTURE_ROOT = path.join(SCRATCH_ROOT, 'generated_fixtures');
 const TEMP_PREFIX = 'unfold-e2e-';
-const BENCHMARK_SCENARIOS = [
-  { folderName: 'folder_00010', count: 10, prefix: 'f10' },
-  { folderName: 'folder_01000', count: 1000, prefix: 'f1000' },
-  { folderName: 'folder_10000', count: 10000, prefix: 'f10000' }
-];
-const NESTED_FOLDER_NAME = 'nested_00100';
-const NESTED_DEPTH = 100;
 
 const cleanupTargets = new Set<string>();
 let cleanupHooksInstalled = false;
@@ -48,30 +42,6 @@ function touchFile(filePath: string): void {
   fs.closeSync(fs.openSync(filePath, 'w'));
 }
 
-function createBenchmarkTree(rootDir: string): void {
-  const benchmarkRoot = path.join(rootDir, 'benchmark-tree');
-  fs.mkdirSync(benchmarkRoot, { recursive: true });
-
-  for (const scenario of BENCHMARK_SCENARIOS) {
-    const folderPath = path.join(benchmarkRoot, scenario.folderName);
-    fs.mkdirSync(folderPath, { recursive: true });
-    for (let index = 0; index < scenario.count; index += 1) {
-      const fileName = `${scenario.prefix}-item-${String(index).padStart(5, '0')}.txt`;
-      touchFile(path.join(folderPath, fileName));
-    }
-  }
-
-  const nestedRoot = path.join(benchmarkRoot, NESTED_FOLDER_NAME);
-  fs.mkdirSync(nestedRoot, { recursive: true });
-  let currentPath = nestedRoot;
-  for (let depth = 1; depth <= NESTED_DEPTH; depth += 1) {
-    const levelName = `d${String(depth).padStart(3, '0')}`;
-    currentPath = path.join(currentPath, levelName);
-    fs.mkdirSync(currentPath, { recursive: true });
-  }
-  touchFile(path.join(currentPath, 'deep-file.txt'));
-}
-
 function ensureBaseStructureExists(): void {
   if (
     fs.existsSync(path.join(GENERATED_FIXTURE_ROOT, 'dir2', 'dir3', 'file211.txt'))
@@ -85,7 +55,7 @@ function ensureBaseStructureExists(): void {
     recursive: true
   });
   touchFile(path.join(GENERATED_FIXTURE_ROOT, 'dir2', 'dir3', 'file211.txt'));
-  createBenchmarkTree(GENERATED_FIXTURE_ROOT);
+  createBenchmarkTreeInDirectory(GENERATED_FIXTURE_ROOT);
 }
 
 function pruneStaleFixtureRoots(): void {
