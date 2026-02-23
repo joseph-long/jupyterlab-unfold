@@ -9,8 +9,13 @@ import {
   type Page,
   type TestInfo
 } from '@playwright/test';
+import {
+  cleanupIsolatedFixtureRoot,
+  createIsolatedFixtureRoot,
+  prefixPath
+} from './helpers/fixture';
 
-const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:8888';
+const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:10888';
 const SAMPLE_COUNT = Number(process.env.BENCHMARK_SAMPLE_COUNT ?? '3');
 const PARALLEL_USERS = Number(process.env.BENCHMARK_PARALLEL_USERS ?? '2');
 const VERBOSE = process.env.VERBOSE === '1';
@@ -218,6 +223,14 @@ const SCENARIOS: IScenario[] = [
     firstItemPath: 'benchmark-tree/folder_10000/f10000-item-00000.txt'
   }
 ];
+
+function scopedScenarios(rootPath: string): IScenario[] {
+  return SCENARIOS.map(scenario => ({
+    ...scenario,
+    folderPath: prefixPath(rootPath, scenario.folderPath),
+    firstItemPath: prefixPath(rootPath, scenario.firstItemPath)
+  }));
+}
 
 function itemSelector(path: string): string {
   return `.jp-DirListing-item[data-path="${path}"]`;
@@ -546,15 +559,21 @@ async function measureVisibilityTransition(
   };
 }
 
-function reportPath(): string {
-  return path.resolve(__dirname, '..', 'benchmark-results', 'filebrowser.json');
+function reportPath(browserName: string): string {
+  return path.resolve(
+    __dirname,
+    '..',
+    'benchmark-results',
+    `filebrowser.${browserName}.json`
+  );
 }
 
 async function writeReport(
   report: IBenchmarkReport,
-  testInfo: TestInfo
+  testInfo: TestInfo,
+  browserName: string
 ): Promise<void> {
-  const outputPath = reportPath();
+  const outputPath = reportPath(browserName);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, JSON.stringify(report, null, 2), 'utf-8');
   await testInfo.attach('filebrowser-benchmark', {
@@ -563,10 +582,14 @@ async function writeReport(
   });
 }
 
-async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> {
+async function runSingleBenchmark(
+  context: BrowserContext,
+  fixtureRoot: string
+): Promise<IRunTiming> {
   const page = await context.newPage();
   const userId = Math.random().toString(16).slice(2, 8);
   const workspaceId = `unfold-bench-${userId}`;
+  const scenarios = scopedScenarios(fixtureRoot);
   try {
     await page.addInitScript(() => {
       const benchmarkWindow = window as unknown as {
@@ -622,7 +645,7 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
     logVerbose(`[user:${userId}] navigating to ${navUrl}`);
     await page.goto(navUrl);
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
-    await page.waitForSelector(itemSelector('benchmark-tree'), {
+    await page.waitForSelector(itemSelector(fixtureRoot), {
       state: 'visible',
       timeout: 30_000
     });
@@ -631,10 +654,15 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
       `[user:${userId}] first file browser display ${firstFileBrowserDisplay.toFixed(2)}ms`
     );
 
-    logVerbose(`[user:${userId}] expanding benchmark-tree`);
-    await page.click(itemSelector('benchmark-tree'));
+    logVerbose(`[user:${userId}] expanding ${fixtureRoot}`);
+    await page.click(itemSelector(fixtureRoot));
     try {
-      await page.waitForSelector(itemSelector(SCENARIOS[0].folderPath), {
+      await page.waitForSelector(itemSelector(prefixPath(fixtureRoot, 'benchmark-tree')), {
+        state: 'visible',
+        timeout: 30_000
+      });
+      await page.click(itemSelector(prefixPath(fixtureRoot, 'benchmark-tree')));
+      await page.waitForSelector(itemSelector(scenarios[0].folderPath), {
         state: 'visible',
         timeout: 30_000
       });
@@ -651,7 +679,7 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
       );
       throw error;
     }
-    logVerbose(`[user:${userId}] benchmark-tree expanded`);
+    logVerbose(`[user:${userId}] benchmark-tree expanded under ${fixtureRoot}`);
 
     const unfold: IRunTiming['unfold'] = {
       '10': 0,
@@ -686,7 +714,7 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
       }
     };
 
-    for (const scenario of SCENARIOS) {
+    for (const scenario of scenarios) {
       logVerbose(`[user:${userId}] unfold start folder_${scenario.key}`);
       const unfoldMeasurement = await measureVisibilityTransition(
         page,
@@ -760,13 +788,16 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
   }
 }
 
-async function runParallelSample(browser: Browser): Promise<IRunTiming[]> {
+async function runParallelSample(
+  browser: Browser,
+  fixtureRoot: string
+): Promise<IRunTiming[]> {
   const contexts = await Promise.all(
     Array.from({ length: PARALLEL_USERS }).map(() => browser.newContext())
   );
   try {
     return await Promise.all(
-      contexts.map(context => runSingleBenchmark(context))
+      contexts.map(context => runSingleBenchmark(context, fixtureRoot))
     );
   } finally {
     await Promise.all(contexts.map(context => context.close()));
@@ -779,76 +810,82 @@ test.describe.serial('file browser benchmark', () => {
     testInfo
   ) => {
     test.setTimeout(10 * 60 * 1000);
+    const fixtureRoot = createIsolatedFixtureRoot();
     logVerbose(
       `benchmark start sampleCount=${SAMPLE_COUNT} parallelUsers=${PARALLEL_USERS} target=${TARGET_URL}`
     );
 
     const runs: IRunTiming[] = [];
-    for (let sampleIndex = 0; sampleIndex < SAMPLE_COUNT; sampleIndex += 1) {
-      logVerbose(`starting sample ${sampleIndex + 1}/${SAMPLE_COUNT}`);
-      const sampleRuns = await runParallelSample(browser);
-      runs.push(...sampleRuns);
-      logVerbose(
-        `completed sample ${sampleIndex + 1}/${SAMPLE_COUNT}; accumulatedRuns=${runs.length}`
-      );
-    }
-
-    const report: IBenchmarkReport = {
-      measuredAt: new Date().toISOString(),
-      sampleCount: SAMPLE_COUNT,
-      parallelUsers: PARALLEL_USERS,
-      runs,
-      summaryMs: {
-        firstFileBrowserDisplay: summarize(
-          runs.map(run => run.firstFileBrowserDisplay)
-        ),
-        unfold: {
-          '10': summarize(runs.map(run => run.unfold['10'])),
-          '1000': summarize(runs.map(run => run.unfold['1000'])),
-          '10000': summarize(runs.map(run => run.unfold['10000']))
-        },
-        fold: {
-          '10': summarize(runs.map(run => run.fold['10'])),
-          '1000': summarize(runs.map(run => run.fold['1000'])),
-          '10000': summarize(runs.map(run => run.fold['10000']))
-        },
-        reShow: {
-          '10': summarize(runs.map(run => run.reShow['10'])),
-          '1000': summarize(runs.map(run => run.reShow['1000'])),
-          '10000': summarize(runs.map(run => run.reShow['10000']))
-        }
-      },
-      summaryBreakdownMs: {
-        unfold: {
-          '10': summarizeBackend(runs, 'unfold', '10'),
-          '1000': summarizeBackend(runs, 'unfold', '1000'),
-          '10000': summarizeBackend(runs, 'unfold', '10000')
-        },
-        fold: {
-          '10': summarizeBackend(runs, 'fold', '10'),
-          '1000': summarizeBackend(runs, 'fold', '1000'),
-          '10000': summarizeBackend(runs, 'fold', '10000')
-        },
-        reShow: {
-          '10': summarizeBackend(runs, 'reShow', '10'),
-          '1000': summarizeBackend(runs, 'reShow', '1000'),
-          '10000': summarizeBackend(runs, 'reShow', '10000')
-        }
+    try {
+      for (let sampleIndex = 0; sampleIndex < SAMPLE_COUNT; sampleIndex += 1) {
+        logVerbose(`starting sample ${sampleIndex + 1}/${SAMPLE_COUNT}`);
+        const sampleRuns = await runParallelSample(browser, fixtureRoot);
+        runs.push(...sampleRuns);
+        logVerbose(
+          `completed sample ${sampleIndex + 1}/${SAMPLE_COUNT}; accumulatedRuns=${runs.length}`
+        );
       }
-    };
 
-    await writeReport(report, testInfo);
-    logVerbose(
-      `benchmark report written firstDisplayMean=${report.summaryMs.firstFileBrowserDisplay.mean.toFixed(
-        2
-      )}ms`
-    );
+      const report: IBenchmarkReport = {
+        measuredAt: new Date().toISOString(),
+        sampleCount: SAMPLE_COUNT,
+        parallelUsers: PARALLEL_USERS,
+        runs,
+        summaryMs: {
+          firstFileBrowserDisplay: summarize(
+            runs.map(run => run.firstFileBrowserDisplay)
+          ),
+          unfold: {
+            '10': summarize(runs.map(run => run.unfold['10'])),
+            '1000': summarize(runs.map(run => run.unfold['1000'])),
+            '10000': summarize(runs.map(run => run.unfold['10000']))
+          },
+          fold: {
+            '10': summarize(runs.map(run => run.fold['10'])),
+            '1000': summarize(runs.map(run => run.fold['1000'])),
+            '10000': summarize(runs.map(run => run.fold['10000']))
+          },
+          reShow: {
+            '10': summarize(runs.map(run => run.reShow['10'])),
+            '1000': summarize(runs.map(run => run.reShow['1000'])),
+            '10000': summarize(runs.map(run => run.reShow['10000']))
+          }
+        },
+        summaryBreakdownMs: {
+          unfold: {
+            '10': summarizeBackend(runs, 'unfold', '10'),
+            '1000': summarizeBackend(runs, 'unfold', '1000'),
+            '10000': summarizeBackend(runs, 'unfold', '10000')
+          },
+          fold: {
+            '10': summarizeBackend(runs, 'fold', '10'),
+            '1000': summarizeBackend(runs, 'fold', '1000'),
+            '10000': summarizeBackend(runs, 'fold', '10000')
+          },
+          reShow: {
+            '10': summarizeBackend(runs, 'reShow', '10'),
+            '1000': summarizeBackend(runs, 'reShow', '1000'),
+            '10000': summarizeBackend(runs, 'reShow', '10000')
+          }
+        }
+      };
 
-    expect(runs.length).toBe(SAMPLE_COUNT * PARALLEL_USERS);
-    expect(report.summaryMs.firstFileBrowserDisplay.mean).toBeGreaterThan(0);
-    expect(report.summaryMs.unfold['10'].mean).toBeGreaterThan(0);
-    expect(report.summaryMs.unfold['1000'].mean).toBeGreaterThan(0);
-    expect(report.summaryMs.unfold['10000'].mean).toBeGreaterThan(0);
-    expect(report.summaryMs.reShow['10000'].mean).toBeGreaterThan(0);
+      const browserName = testInfo.project.use.browserName ?? 'unknown';
+      await writeReport(report, testInfo, browserName);
+      logVerbose(
+        `benchmark report written firstDisplayMean=${report.summaryMs.firstFileBrowserDisplay.mean.toFixed(
+          2
+        )}ms`
+      );
+
+      expect(runs.length).toBe(SAMPLE_COUNT * PARALLEL_USERS);
+      expect(report.summaryMs.firstFileBrowserDisplay.mean).toBeGreaterThan(0);
+      expect(report.summaryMs.unfold['10'].mean).toBeGreaterThan(0);
+      expect(report.summaryMs.unfold['1000'].mean).toBeGreaterThan(0);
+      expect(report.summaryMs.unfold['10000'].mean).toBeGreaterThan(0);
+      expect(report.summaryMs.reShow['10000'].mean).toBeGreaterThan(0);
+    } finally {
+      cleanupIsolatedFixtureRoot(fixtureRoot);
+    }
   });
 });

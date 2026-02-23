@@ -10,7 +10,7 @@ const config = {
     ? undefined
     : {
         command: 'jlpm start',
-        url: 'http://localhost:8888/lab',
+        url: 'http://localhost:10888/lab',
         timeout: 120 * 1000,
         reuseExistingServer: !process.env.CI,
         gracefulShutdown: {

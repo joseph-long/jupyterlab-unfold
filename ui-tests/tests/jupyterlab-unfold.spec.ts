@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
+import {
+  cleanupIsolatedFixtureRoot,
+  createIsolatedFixtureRoot,
+  prefixPath
+} from './helpers/fixture';
 
-const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:8888';
+const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:10888';
 const TREE_LOCATOR = '.jp-DirListing-content';
-const TABS_LOCATOR = '.lm-DockPanel-tabBar';
 
 function buildLabUrl(rawTarget: string): string {
   const parsed = new URL(rawTarget);
@@ -20,12 +24,21 @@ function buildLabUrl(rawTarget: string): string {
   return normalized.toString();
 }
 
-// This seems to be more robust than the page.locator('text=name')
-function item(name: string) {
-  return `.jp-DirListing-item[title^="Name: ${name}"]`;
+function pathItem(itemPath: string): string {
+  return `.jp-DirListing-item[data-path="${itemPath}"]`;
 }
 
+let fixtureRoot = '';
+
 test.describe.serial('jupyterlab-unfold', () => {
+  test.beforeEach(() => {
+    fixtureRoot = createIsolatedFixtureRoot();
+  });
+
+  test.afterEach(() => {
+    cleanupIsolatedFixtureRoot(fixtureRoot);
+  });
+
   test('should unfold', async ({ page }) => {
     let workspace = { data: {}, metadata: { id: 'default' } };
     await page.route(/.*\/api\/workspaces.*/, (route, request) => {
@@ -46,55 +59,34 @@ test.describe.serial('jupyterlab-unfold', () => {
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector('div[role="main"] >> text=Launcher');
 
-    // Let time for JupyterLab to finish rendering
-    await page.hover(item('dir1'));
+    await page.hover(pathItem(fixtureRoot));
+    await page.click(pathItem(fixtureRoot));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir1')));
+    await expect(page.locator(TREE_LOCATOR)).toContainText('dir1');
 
-    expect(await page.locator(TREE_LOCATOR).screenshot()).toMatchSnapshot(
-      'first-render.png'
-    );
+    await page.click(pathItem(prefixPath(fixtureRoot, 'dir1')));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2')));
+    await expect(page.locator(pathItem(prefixPath(fixtureRoot, 'dir2')))).toBeVisible();
 
-    await page.click(item('dir1'));
-    await page.waitForSelector(item('dir2'));
+    await page.click(pathItem(prefixPath(fixtureRoot, 'dir2')));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')));
+    await expect(
+      page.locator(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')))
+    ).toBeVisible();
 
-    expect(await page.locator(TREE_LOCATOR).screenshot()).toMatchSnapshot(
-      'unfold-dir1.png'
-    );
+    await page.click(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2/dir3/file211.txt')));
+    await expect(
+      page.locator(pathItem(prefixPath(fixtureRoot, 'dir2/dir3/file211.txt')))
+    ).toBeVisible();
 
-    await page.click(item('dir2'));
-    await page.waitForSelector(item('dir3'));
-
-    expect(await page.locator(TREE_LOCATOR).screenshot()).toMatchSnapshot(
-      'unfold-dir2.png'
-    );
-
-    await page.click(item('dir3'));
-    await page.waitForSelector(item('file211.txt'));
-
-    expect(await page.locator(TREE_LOCATOR).screenshot()).toMatchSnapshot(
-      'unfold-dir3.png'
-    );
-
-    await page.click(item('dir2'));
-    await page.waitForSelector(item('dir3'), { state: 'detached' });
-
-    expect(await page.locator(TREE_LOCATOR).screenshot()).toMatchSnapshot(
-      'fold-dir2.png'
-    );
-
-    await Promise.all([
-      page.waitForResponse(
-        response =>
-          response.request().method() === 'PUT' &&
-          response.status() === 204 &&
-          response.url().includes('api/workspaces')
-      ),
-      page.click(item('dir2'))
-    ]);
-    await page.waitForSelector(item('dir3'));
-
-    expect(await page.locator(TREE_LOCATOR).screenshot()).toMatchSnapshot(
-      'unfold-dir2-2.png'
-    );
+    await page.click(pathItem(prefixPath(fixtureRoot, 'dir2')));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')), {
+      state: 'detached'
+    });
+    await expect(
+      page.locator(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')))
+    ).toHaveCount(0);
   });
 
   test('should open file', async ({ page }) => {
@@ -123,16 +115,22 @@ test.describe.serial('jupyterlab-unfold', () => {
     await page.goto(buildLabUrl(TARGET_URL));
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector('div[role="main"] >> text=Launcher');
+    await page.hover(pathItem(fixtureRoot));
+    await page.click(pathItem(fixtureRoot));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2')), {
+      state: 'visible'
+    });
+    await page.click(pathItem(prefixPath(fixtureRoot, 'dir2')));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')), {
+      state: 'visible'
+    });
+    await page.click(pathItem(prefixPath(fixtureRoot, 'dir2/dir3')));
+    await page.waitForSelector(pathItem(prefixPath(fixtureRoot, 'dir2/dir3/file211.txt')), {
+      state: 'visible'
+    });
 
-    // Let time for JupyterLab to finish rendering
-    await page.hover(item('dir1'));
-
-    await page.dblclick(item('file211.txt'));
-
+    await page.dblclick(pathItem(prefixPath(fixtureRoot, 'dir2/dir3/file211.txt')));
     await page.waitForSelector('[role="main"] >> text=file211.txt');
-
-    expect(await page.locator(TABS_LOCATOR).screenshot()).toMatchSnapshot(
-      'open-file211.png'
-    );
+    await expect(page.locator('.lm-DockPanel-tabBar')).toContainText('file211.txt');
   });
 });

@@ -2,7 +2,7 @@
 
 import { IDragEvent } from '@lumino/dragdrop';
 
-import { ArrayExt, toArray } from '@lumino/algorithm';
+import { toArray } from '@lumino/algorithm';
 
 import { ElementExt } from '@lumino/domutils';
 
@@ -48,6 +48,9 @@ const DROP_TARGET_CLASS = 'jp-mod-dropTarget';
  * The mime type for a contents drag object.
  */
 const CONTENTS_MIME = 'application/x-jupyter-icontents';
+const SPRING_LOAD_DELAY_MS = 500;
+const EDGE_SCROLL_ZONE_PX = 28;
+const EDGE_SCROLL_MAX_PX_PER_FRAME = 20;
 
 interface IBenchmarkEvent {
   type: 'tree-fetch';
@@ -394,14 +397,12 @@ export class DirTreeListing extends DirListing {
       }
     });
 
-    // @ts-ignore private field from DirListing
-    const original = this._sortedItems as Contents.IModel[];
+    // Keep sortedItems aligned with visible window so DirListing's
+    // index-based interactions (selection/drag) map to mounted rows.
     // @ts-ignore private field from DirListing
     this._sortedItems = visibleItems;
     // @ts-ignore private/protected visibility mismatch in extension context
     this.updateNodes(visibleItems, nodes);
-    // @ts-ignore private field from DirListing
-    this._sortedItems = original;
 
     // @ts-ignore private field from DirListing
     this._prevPath = this._model.path;
@@ -430,44 +431,30 @@ export class DirTreeListing extends DirListing {
   }
 
   private _eventDragEnter(event: IDragEvent): void {
-    if (event.mimeData.hasData(CONTENTS_MIME)) {
-      // @ts-ignore
-      const index = this._hitTestNodes(this._items, event);
-
-      let target: HTMLElement;
-      if (index !== -1) {
-        // @ts-ignore
-        target = this._items[index];
-      } else {
-        target = event.target as HTMLElement;
-      }
-      target.classList.add(DROP_TARGET_CLASS);
-      event.preventDefault();
-      event.stopPropagation();
+    if (!event.mimeData.hasData(CONTENTS_MIME)) {
+      return;
     }
+    this._dragInProgress = true;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dropAction = event.proposedAction;
+    this._updateDragState(
+      event.clientX,
+      event.clientY,
+      event.target as HTMLElement | null
+    );
   }
 
   private _eventDragOver(event: IDragEvent): void {
     event.preventDefault();
     event.stopPropagation();
+    this._dragInProgress = true;
     event.dropAction = event.proposedAction;
-
-    const dropTarget = DOMUtils.findElement(this.node, DROP_TARGET_CLASS);
-    if (dropTarget) {
-      dropTarget.classList.remove(DROP_TARGET_CLASS);
-    }
-
-    // @ts-ignore
-    const index = this._hitTestNodes(this._items, event);
-
-    let target: HTMLElement;
-    if (index !== -1) {
-      // @ts-ignore
-      target = this._items[index];
-    } else {
-      target = event.target as HTMLElement;
-    }
-    target.classList.add(DROP_TARGET_CLASS);
+    this._updateDragState(
+      event.clientX,
+      event.clientY,
+      event.target as HTMLElement | null
+    );
   }
 
   private _eventDrop(event: IDragEvent): void {
@@ -477,39 +464,22 @@ export class DirTreeListing extends DirListing {
     clearTimeout(this._selectTimer);
     if (event.proposedAction === 'none') {
       event.dropAction = 'none';
+      this._cleanupDragInteraction();
       return;
     }
     if (!event.mimeData.hasData(CONTENTS_MIME)) {
+      this._cleanupDragInteraction();
       return;
     }
 
-    let target = event.target as HTMLElement;
-    while (target && target.parentElement) {
-      if (target.classList.contains(DROP_TARGET_CLASS)) {
-        target.classList.remove(DROP_TARGET_CLASS);
-        break;
-      }
-      target = target.parentElement;
-    }
-
-    // Get the path based on the target node.
-    // @ts-ignore
-    const index = ArrayExt.firstIndexOf(this._items, target);
-    let newDir: string;
-
-    if (index !== -1) {
-      const virtualIndex = index + this._virtualRangeStart;
-      const item =
-        this._virtualVisibleItems[index] ??
-        toArray(this.model.items())[virtualIndex];
-
-      if (item.type === 'directory') {
-        newDir = item.path;
-      } else {
-        newDir = PathExt.dirname(item.path);
-      }
-    } else {
-      newDir = '';
+    let newDir = '';
+    const targetPath = this._activeDropTargetPath;
+    const targetItem = targetPath ? this._getItemByPath(targetPath) : null;
+    if (targetItem) {
+      newDir =
+        targetItem.type === 'directory'
+          ? targetItem.path
+          : PathExt.dirname(targetItem.path);
     }
 
     // @ts-ignore
@@ -546,6 +516,16 @@ export class DirTreeListing extends DirListing {
         error
       );
     });
+    this._cleanupDragInteraction();
+  }
+
+  private _eventDragLeave(event: IDragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (ElementExt.hitTest(this.node, event.clientX, event.clientY)) {
+      return;
+    }
+    this._cleanupDragInteraction();
   }
 
   /**
@@ -576,15 +556,6 @@ export class DirTreeListing extends DirListing {
     }
   }
 
-  private _hitTestNodes(nodes: HTMLElement[], event: MouseEvent): number {
-    return ArrayExt.findFirstIndex(
-      nodes,
-      node =>
-        ElementExt.hitTest(node, event.clientX, event.clientY) ||
-        event.target === node
-    );
-  }
-
   handleEvent(event: Event): void {
     switch (event.type) {
       case 'dblclick':
@@ -596,13 +567,14 @@ export class DirTreeListing extends DirListing {
       case 'lm-dragover':
         this._eventDragOver(event as IDragEvent);
         break;
+      case 'lm-dragleave':
+        this._eventDragLeave(event as IDragEvent);
+        break;
       case 'lm-drop':
         this._eventDrop(event as IDragEvent);
         break;
       case 'mousedown':
-        if (!this.shouldVirtualize()) {
-          super.handleEvent(event);
-        }
+        super.handleEvent(event);
         this._eventMouseDown(event as MouseEvent);
         break;
       case 'scroll':
@@ -617,6 +589,11 @@ export class DirTreeListing extends DirListing {
     }
   }
 
+  protected onBeforeDetach(msg: Message): void {
+    this._cleanupDragInteraction();
+    super.onBeforeDetach(msg);
+  }
+
   private _singleClickToUnfold = true;
   private _virtualizationThreshold = 2500;
   private _virtualRowHeight = 24;
@@ -628,6 +605,15 @@ export class DirTreeListing extends DirListing {
   private _virtualRangeStart = 0;
   private _virtualVisibleItems: Contents.IModel[] = [];
   private _virtualUpdateRaf = 0;
+  private _dragInProgress = false;
+  private _activeDropTargetPath: string | null = null;
+  private _springHoverPath: string | null = null;
+  private _springHoverTimer = 0;
+  private _springOpenedPaths = new Set<string>();
+  private _edgeScrollRaf = 0;
+  private _edgeScrollVelocity = 0;
+  private _edgePointerClientX = 0;
+  private _edgePointerClientY = 0;
 
   private shouldVirtualize(): boolean {
     return toArray(this.model.items()).length >= this._virtualizationThreshold;
@@ -681,6 +667,7 @@ export class DirTreeListing extends DirListing {
     this._lastRange = { start: -1, end: -1 };
     this._virtualRangeStart = 0;
     this.cancelVirtualUpdate();
+    this._cleanupDragInteraction();
   }
 
   private entryForClick(event: MouseEvent): Contents.IModel | null {
@@ -722,6 +709,164 @@ export class DirTreeListing extends DirListing {
       window.cancelAnimationFrame(this._virtualUpdateRaf);
       this._virtualUpdateRaf = 0;
     }
+  }
+
+  private _getItemByPath(path: string): Contents.IModel | null {
+    return toArray(this.model.items()).find(item => item.path === path) ?? null;
+  }
+
+  private _rowPathAtPoint(
+    clientX: number,
+    clientY: number,
+    target?: HTMLElement | null
+  ): string | null {
+    const directRow = target?.closest('.jp-DirListing-item') as HTMLElement | null;
+    if (directRow) {
+      return directRow.getAttribute('data-path');
+    }
+    const hovered = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+    const row = hovered?.closest('.jp-DirListing-item') as HTMLElement | null;
+    return row?.getAttribute('data-path') ?? null;
+  }
+
+  private _setDropTargetPath(path: string | null): void {
+    if (this._activeDropTargetPath === path) {
+      return;
+    }
+    const previousPath = this._activeDropTargetPath;
+    if (previousPath) {
+      const previousNode = this.contentNode.querySelector(
+        `.jp-DirListing-item[data-path="${CSS.escape(previousPath)}"]`
+      );
+      previousNode?.classList.remove(DROP_TARGET_CLASS);
+    }
+    this._activeDropTargetPath = path;
+    if (!path) {
+      this._cancelSpringHover();
+      return;
+    }
+    const node = this.contentNode.querySelector(
+      `.jp-DirListing-item[data-path="${CSS.escape(path)}"]`
+    );
+    node?.classList.add(DROP_TARGET_CLASS);
+    this._updateSpringHover(path);
+  }
+
+  private _updateSpringHover(path: string): void {
+    const item = this._getItemByPath(path);
+    const shouldSpring =
+      !!item &&
+      item.type === 'directory' &&
+      !this.model.isOpen(path) &&
+      !this._springOpenedPaths.has(path);
+    if (!shouldSpring) {
+      this._cancelSpringHover();
+      return;
+    }
+    if (this._springHoverPath === path && this._springHoverTimer !== 0) {
+      return;
+    }
+    this._cancelSpringHover();
+    this._springHoverPath = path;
+    this._springHoverTimer = window.setTimeout(() => {
+      const hoverPath = this._springHoverPath;
+      if (!hoverPath || hoverPath !== path || this.model.isOpen(path)) {
+        return;
+      }
+      this._springOpenedPaths.add(path);
+      void this.model.toggle(path);
+    }, SPRING_LOAD_DELAY_MS);
+  }
+
+  private _cancelSpringHover(): void {
+    this._springHoverPath = null;
+    if (this._springHoverTimer !== 0) {
+      window.clearTimeout(this._springHoverTimer);
+      this._springHoverTimer = 0;
+    }
+  }
+
+  private _updateDragState(
+    clientX: number,
+    clientY: number,
+    target?: HTMLElement | null
+  ): void {
+    this._edgePointerClientX = clientX;
+    this._edgePointerClientY = clientY;
+    this._setDropTargetPath(this._rowPathAtPoint(clientX, clientY, target));
+    this._edgeScrollVelocity = this._computeEdgeScrollVelocity(clientY);
+    if (this._edgeScrollVelocity !== 0) {
+      this._startEdgeAutoScroll();
+    } else {
+      this._stopEdgeAutoScroll();
+    }
+  }
+
+  private _computeEdgeScrollVelocity(clientY: number): number {
+    const rect = this.contentNode.getBoundingClientRect();
+    if (clientY < rect.top || clientY > rect.bottom) {
+      return 0;
+    }
+    const topDistance = clientY - rect.top;
+    if (topDistance < EDGE_SCROLL_ZONE_PX) {
+      const ratio = 1 - topDistance / EDGE_SCROLL_ZONE_PX;
+      return -EDGE_SCROLL_MAX_PX_PER_FRAME * ratio * ratio;
+    }
+    const bottomDistance = rect.bottom - clientY;
+    if (bottomDistance < EDGE_SCROLL_ZONE_PX) {
+      const ratio = 1 - bottomDistance / EDGE_SCROLL_ZONE_PX;
+      return EDGE_SCROLL_MAX_PX_PER_FRAME * ratio * ratio;
+    }
+    return 0;
+  }
+
+  private _startEdgeAutoScroll(): void {
+    if (this._edgeScrollRaf !== 0) {
+      return;
+    }
+    const step = () => {
+      this._edgeScrollRaf = 0;
+      if (!this._dragInProgress || this._edgeScrollVelocity === 0) {
+        return;
+      }
+      const content = this.contentNode;
+      const nextScrollTop = Math.max(
+        0,
+        Math.min(
+          content.scrollHeight - content.clientHeight,
+          content.scrollTop + this._edgeScrollVelocity
+        )
+      );
+      if (nextScrollTop !== content.scrollTop) {
+        content.scrollTop = nextScrollTop;
+      }
+      this._setDropTargetPath(
+        this._rowPathAtPoint(this._edgePointerClientX, this._edgePointerClientY)
+      );
+      this._edgeScrollVelocity = this._computeEdgeScrollVelocity(
+        this._edgePointerClientY
+      );
+      if (this._edgeScrollVelocity !== 0) {
+        this._edgeScrollRaf = window.requestAnimationFrame(step);
+      }
+    };
+    this._edgeScrollRaf = window.requestAnimationFrame(step);
+  }
+
+  private _stopEdgeAutoScroll(): void {
+    if (this._edgeScrollRaf !== 0) {
+      window.cancelAnimationFrame(this._edgeScrollRaf);
+      this._edgeScrollRaf = 0;
+    }
+    this._edgeScrollVelocity = 0;
+  }
+
+  private _cleanupDragInteraction(): void {
+    this._dragInProgress = false;
+    this._setDropTargetPath(null);
+    this._cancelSpringHover();
+    this._springOpenedPaths.clear();
+    this._stopEdgeAutoScroll();
   }
 }
 

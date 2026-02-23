@@ -12,7 +12,7 @@ module.exports = {
     ? undefined
     : {
         command: 'jlpm start:bench',
-        url: 'http://localhost:8888/lab',
+        url: 'http://localhost:10888/lab',
         timeout: 120 * 1000,
         reuseExistingServer: false,
         gracefulShutdown: {

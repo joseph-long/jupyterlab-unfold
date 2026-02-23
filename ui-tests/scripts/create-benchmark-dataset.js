@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT_DIR = path.resolve(__dirname, '..', 'test_structure');
+const ROOT_DIR = path.resolve(__dirname, '..', 'scratch', 'generated_fixtures');
 const BENCHMARK_ROOT = path.join(ROOT_DIR, 'benchmark-tree');
 
 const SCENARIOS = [

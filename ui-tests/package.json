@@ -6,7 +6,7 @@
   "scripts": {
     "bench:filebrowser": "jlpm playwright test --config=playwright.benchmark.config.js",
     "prepare:benchmark-data": "node scripts/create-benchmark-dataset.js",
-    "start": "jupyter lab test_structure --config jupyter_server_test_config.py",
+    "start": "jupyter lab scratch --ServerApp.port=10888 --config jupyter_server_test_config.py",
     "start:bench": "jlpm prepare:benchmark-data && jlpm start",
     "test": "jlpm playwright test",
     "test:update": "jlpm playwright test --update-snapshots"
