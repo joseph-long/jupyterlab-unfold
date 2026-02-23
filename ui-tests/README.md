@@ -92,6 +92,11 @@ BENCHMARK_SAMPLE_COUNT=1 BENCHMARK_PARALLEL_USERS=1 jlpm bench:filebrowser
 ```
 
 Benchmark output is written to `benchmark-results/filebrowser.json`.
+The report includes both:
+- `summaryMs`: UI-observed timings for first display, unfold, fold, and re-show.
+- `summaryBreakdownMs`: averaged backend and client-stage timings captured per tree request (server headers and instrumented frontend stages).
+
+For benchmark runs, the page installs a callback at `window.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__` and the extension emits per-request timing events to that hook.
 
 ## Update the tests snapshots
 

@@ -48,6 +48,50 @@ const DROP_TARGET_CLASS = 'jp-mod-dropTarget';
  */
 const CONTENTS_MIME = 'application/x-jupyter-icontents';
 
+interface IBenchmarkEvent {
+  type: 'tree-fetch';
+  requestId: number;
+  path: string;
+  updatePath: string | null;
+  expandedPathsCount: number;
+  itemCount: number;
+  clientRequestMs: number;
+  clientJsonMs: number;
+  clientFetchTotalMs: number;
+  openStateUpdateMs: number;
+  modelTotalMs: number;
+  serverTreeMs: number | null;
+  serverEncodeMs: number | null;
+  serverTotalMs: number | null;
+  serverItemCount: number | null;
+  serverListedDirs: number | null;
+}
+
+interface IBenchmarkWindow extends Window {
+  __JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__?: (event: IBenchmarkEvent) => void;
+  __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: IBenchmarkEvent[];
+}
+
+function emitBenchmarkEvent(event: IBenchmarkEvent): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const benchmarkWindow = window as IBenchmarkWindow;
+  if (typeof benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__ === 'function') {
+    try {
+      benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__(event);
+    } catch (error) {
+      console.warn('jupyterlab-unfold benchmark hook failed', error);
+    }
+    return;
+  }
+
+  if (Array.isArray(benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__)) {
+    benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__.push(event);
+  }
+}
+
 export const folderOpenIcon = new LabIcon({
   name: 'ui-components:folder-open',
   svgstr: folderOpenSvgstr
@@ -584,13 +628,17 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     path: string,
     pathToUpdate?: string
   ): Promise<Contents.IModel[]> {
+    const modelStart = performance.now();
     const expandedPaths = this.buildExpandedPaths(path, pathToUpdate);
-    const items = await fetchTreeListing({
+    const normalizedUpdatePath = this.normalizePath(pathToUpdate);
+    const treeListing = await fetchTreeListing({
       basePath: path,
       openPaths: expandedPaths,
-      updatePath: this.normalizePath(pathToUpdate),
+      updatePath: normalizedUpdatePath,
       serverSettings: this.serverSettings
     });
+    const items = treeListing.items;
+    const openStateStart = performance.now();
 
     const expandedPathSet = new Set(expandedPaths);
     this.openState[path] = true;
@@ -599,6 +647,26 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
         this.openState[entry.path] = false;
       }
     }
+    const openStateUpdateMs = performance.now() - openStateStart;
+
+    emitBenchmarkEvent({
+      type: 'tree-fetch',
+      requestId: treeListing.diagnostics.requestId,
+      path,
+      updatePath: normalizedUpdatePath ?? null,
+      expandedPathsCount: expandedPaths.length,
+      itemCount: items.length,
+      clientRequestMs: treeListing.diagnostics.requestMs,
+      clientJsonMs: treeListing.diagnostics.jsonMs,
+      clientFetchTotalMs: treeListing.diagnostics.totalMs,
+      openStateUpdateMs,
+      modelTotalMs: performance.now() - modelStart,
+      serverTreeMs: treeListing.diagnostics.serverTreeMs,
+      serverEncodeMs: treeListing.diagnostics.serverEncodeMs,
+      serverTotalMs: treeListing.diagnostics.serverTotalMs,
+      serverItemCount: treeListing.diagnostics.serverItemCount,
+      serverListedDirs: treeListing.diagnostics.serverListedDirs
+    });
 
     return items;
   }

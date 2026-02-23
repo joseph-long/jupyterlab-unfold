@@ -25,12 +25,42 @@ interface IRunTiming {
   unfold: Record<IScenario['key'], number>;
   fold: Record<IScenario['key'], number>;
   reShow: Record<IScenario['key'], number>;
+  backend: {
+    unfold: Record<IScenario['key'], IBackendStepTiming>;
+    fold: Record<IScenario['key'], IBackendStepTiming>;
+    reShow: Record<IScenario['key'], IBackendStepTiming>;
+  };
 }
 
 interface IBenchmarkSummary {
   mean: number;
   min: number;
   max: number;
+}
+
+interface IBackendStepTiming {
+  status: number;
+  treeMs: number | null;
+  encodeMs: number | null;
+  totalMs: number | null;
+  itemCount: number | null;
+  listedDirs: number | null;
+  path: string | null;
+  updatePath: string | null;
+  openPathsCount: number | null;
+  clientRequestMs: number | null;
+  clientJsonMs: number | null;
+  clientFetchTotalMs: number | null;
+  clientOpenStateUpdateMs: number | null;
+  clientModelTotalMs: number | null;
+  uiElapsedMs: number;
+  uiClickToResponseMs: number;
+  uiResponseToVisibleMs: number;
+}
+
+interface ITransitionMeasurement {
+  elapsedMs: number;
+  backend: IBackendStepTiming;
 }
 
 interface IBenchmarkReport {
@@ -44,6 +74,44 @@ interface IBenchmarkReport {
     fold: Record<IScenario['key'], IBenchmarkSummary>;
     reShow: Record<IScenario['key'], IBenchmarkSummary>;
   };
+  summaryBreakdownMs: {
+    unfold: Record<IScenario['key'], IStageSummary>;
+    fold: Record<IScenario['key'], IStageSummary>;
+    reShow: Record<IScenario['key'], IStageSummary>;
+  };
+}
+
+interface IStageSummary {
+  treeMs: IBenchmarkSummary | null;
+  encodeMs: IBenchmarkSummary | null;
+  totalMs: IBenchmarkSummary | null;
+  clientRequestMs: IBenchmarkSummary | null;
+  clientJsonMs: IBenchmarkSummary | null;
+  clientFetchTotalMs: IBenchmarkSummary | null;
+  clientOpenStateUpdateMs: IBenchmarkSummary | null;
+  clientModelTotalMs: IBenchmarkSummary | null;
+  uiElapsedMs: IBenchmarkSummary | null;
+  uiClickToResponseMs: IBenchmarkSummary | null;
+  uiResponseToVisibleMs: IBenchmarkSummary | null;
+}
+
+interface IClientBenchmarkEvent {
+  type: 'tree-fetch';
+  requestId: number;
+  path: string;
+  updatePath: string | null;
+  expandedPathsCount: number;
+  itemCount: number;
+  clientRequestMs: number;
+  clientJsonMs: number;
+  clientFetchTotalMs: number;
+  openStateUpdateMs: number;
+  modelTotalMs: number;
+  serverTreeMs: number | null;
+  serverEncodeMs: number | null;
+  serverTotalMs: number | null;
+  serverItemCount: number | null;
+  serverListedDirs: number | null;
 }
 
 function logVerbose(message: string): void {
@@ -157,16 +225,203 @@ function summarize(values: number[]): IBenchmarkSummary {
   };
 }
 
+function parseNumberHeader(
+  headers: Record<string, string>,
+  key: string
+): number | null {
+  const raw = headers[key];
+  if (raw === undefined) {
+    return null;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function emptyBackendStepTiming(): IBackendStepTiming {
+  return {
+    status: 0,
+    treeMs: null,
+    encodeMs: null,
+    totalMs: null,
+    itemCount: null,
+    listedDirs: null,
+    path: null,
+    updatePath: null,
+    openPathsCount: null,
+    clientRequestMs: null,
+    clientJsonMs: null,
+    clientFetchTotalMs: null,
+    clientOpenStateUpdateMs: null,
+    clientModelTotalMs: null,
+    uiElapsedMs: 0,
+    uiClickToResponseMs: 0,
+    uiResponseToVisibleMs: 0
+  };
+}
+
+function summarizeNullable(values: Array<number | null>): IBenchmarkSummary | null {
+  const present = values.filter((value): value is number => value !== null);
+  if (present.length === 0) {
+    return null;
+  }
+  return summarize(present);
+}
+
+function summarizeBackend(
+  runs: IRunTiming[],
+  phase: keyof IRunTiming['backend'],
+  scenario: IScenario['key']
+): IStageSummary {
+  const metrics = runs.map(run => run.backend[phase][scenario]);
+  return {
+    treeMs: summarizeNullable(metrics.map(value => value.treeMs)),
+    encodeMs: summarizeNullable(metrics.map(value => value.encodeMs)),
+    totalMs: summarizeNullable(metrics.map(value => value.totalMs)),
+    clientRequestMs: summarizeNullable(metrics.map(value => value.clientRequestMs)),
+    clientJsonMs: summarizeNullable(metrics.map(value => value.clientJsonMs)),
+    clientFetchTotalMs: summarizeNullable(
+      metrics.map(value => value.clientFetchTotalMs)
+    ),
+    clientOpenStateUpdateMs: summarizeNullable(
+      metrics.map(value => value.clientOpenStateUpdateMs)
+    ),
+    clientModelTotalMs: summarizeNullable(
+      metrics.map(value => value.clientModelTotalMs)
+    ),
+    uiElapsedMs: summarizeNullable(metrics.map(value => value.uiElapsedMs)),
+    uiClickToResponseMs: summarizeNullable(
+      metrics.map(value => value.uiClickToResponseMs)
+    ),
+    uiResponseToVisibleMs: summarizeNullable(
+      metrics.map(value => value.uiResponseToVisibleMs)
+    )
+  };
+}
+
+async function waitForBenchmarkEvent(
+  page: Page,
+  requestId: number
+): Promise<IClientBenchmarkEvent | null> {
+  const timeoutAt = Date.now() + 5000;
+  while (Date.now() < timeoutAt) {
+    const event = await page.evaluate(id => {
+      const benchmarkWindow = window as unknown as {
+        __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: IClientBenchmarkEvent[];
+      };
+      const queue = benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__;
+      if (!Array.isArray(queue)) {
+        return null;
+      }
+      const index = queue.findIndex(item => item.requestId === id);
+      if (index === -1) {
+        return null;
+      }
+      const [found] = queue.splice(index, 1);
+      return found ?? null;
+    }, requestId);
+
+    if (event) {
+      return event;
+    }
+    await page.waitForTimeout(20);
+  }
+  return null;
+}
+
 async function measureVisibilityTransition(
   page: Page,
+  userId: string,
+  stepLabel: string,
   folderName: string,
   itemName: string,
   targetState: 'visible' | 'hidden'
-): Promise<number> {
+): Promise<ITransitionMeasurement> {
+  const treeResponsePromise = page.waitForResponse(
+    response =>
+      response.url().includes('/jupyterlab-unfold/tree') &&
+      response.request().method() === 'POST',
+    { timeout: 30_000 }
+  );
   const startTime = performance.now();
   await page.click(itemSelector(folderName));
+  const treeResponse = await treeResponsePromise;
+  const responseTime = performance.now();
   await page.waitForSelector(itemSelector(itemName), { state: targetState });
-  return performance.now() - startTime;
+  const endTime = performance.now();
+  const elapsedMs = endTime - startTime;
+  const clickToResponseMs = responseTime - startTime;
+  const responseToVisibleMs = endTime - responseTime;
+
+  const headers = treeResponse.headers();
+  const postData = (() => {
+    try {
+      return treeResponse.request().postDataJSON() as {
+        path?: string;
+        update_path?: string;
+        open_paths?: unknown[];
+        client_request_id?: number;
+      };
+    } catch {
+      return undefined;
+    }
+  })();
+  const backend: IBackendStepTiming = {
+    status: treeResponse.status(),
+    treeMs: parseNumberHeader(headers, 'x-jupyterlab-unfold-tree-ms'),
+    encodeMs: parseNumberHeader(headers, 'x-jupyterlab-unfold-encode-ms'),
+    totalMs: parseNumberHeader(headers, 'x-jupyterlab-unfold-total-ms'),
+    itemCount: parseNumberHeader(headers, 'x-jupyterlab-unfold-item-count'),
+    listedDirs: parseNumberHeader(headers, 'x-jupyterlab-unfold-listed-dirs'),
+    path: postData?.path ?? null,
+    updatePath: postData?.update_path ?? null,
+    openPathsCount: Array.isArray(postData?.open_paths)
+      ? postData.open_paths.length
+      : null,
+    clientRequestMs: null,
+    clientJsonMs: null,
+    clientFetchTotalMs: null,
+    clientOpenStateUpdateMs: null,
+    clientModelTotalMs: null,
+    uiElapsedMs: elapsedMs,
+    uiClickToResponseMs: clickToResponseMs,
+    uiResponseToVisibleMs: responseToVisibleMs
+  };
+
+  const requestId =
+    typeof postData?.client_request_id === 'number'
+      ? postData.client_request_id
+      : null;
+  if (requestId !== null) {
+    const clientEvent = await waitForBenchmarkEvent(page, requestId);
+    if (clientEvent) {
+      backend.clientRequestMs = clientEvent.clientRequestMs;
+      backend.clientJsonMs = clientEvent.clientJsonMs;
+      backend.clientFetchTotalMs = clientEvent.clientFetchTotalMs;
+      backend.clientOpenStateUpdateMs = clientEvent.openStateUpdateMs;
+      backend.clientModelTotalMs = clientEvent.modelTotalMs;
+    }
+  }
+
+  if (VERBOSE) {
+    const requestContext = ` path=${backend.path ?? ''} update_path=${
+      backend.updatePath ?? ''
+    } open_paths=${backend.openPathsCount ?? 'n/a'}`;
+    logProbeTimings(userId, headers);
+    logVerbose(
+      `[user:${userId}] ${stepLabel} response status=${backend.status} ui_ms=${elapsedMs.toFixed(
+        2
+      )} click_to_response_ms=${clickToResponseMs.toFixed(
+        2
+      )} response_to_visible_ms=${responseToVisibleMs.toFixed(
+        2
+      )} client_fetch_ms=${backend.clientFetchTotalMs?.toFixed(2) ?? 'n/a'} client_model_ms=${backend.clientModelTotalMs?.toFixed(2) ?? 'n/a'}${requestContext}`
+    );
+  }
+
+  return {
+    elapsedMs,
+    backend
+  };
 }
 
 function reportPath(): string {
@@ -191,6 +446,17 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
   const userId = Math.random().toString(16).slice(2, 8);
   const workspaceId = `unfold-bench-${userId}`;
   try {
+    await page.addInitScript(() => {
+      const benchmarkWindow = window as unknown as {
+        __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: unknown[];
+        __JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__?: (event: unknown) => void;
+      };
+      benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__ = [];
+      benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__ = event => {
+        benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?.push(event);
+      };
+    });
+
     logVerbose(`[user:${userId}] starting benchmark run`);
     logVerbose(`[user:${userId}] probing ${buildTreeEndpointUrl(TARGET_URL)}`);
     const treeProbe = await page.request.post(buildTreeEndpointUrl(TARGET_URL), {
@@ -280,39 +546,68 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
       '1000': 0,
       '10000': 0
     };
+    const backend: IRunTiming['backend'] = {
+      unfold: {
+        '10': emptyBackendStepTiming(),
+        '1000': emptyBackendStepTiming(),
+        '10000': emptyBackendStepTiming()
+      },
+      fold: {
+        '10': emptyBackendStepTiming(),
+        '1000': emptyBackendStepTiming(),
+        '10000': emptyBackendStepTiming()
+      },
+      reShow: {
+        '10': emptyBackendStepTiming(),
+        '1000': emptyBackendStepTiming(),
+        '10000': emptyBackendStepTiming()
+      }
+    };
 
     for (const scenario of SCENARIOS) {
       logVerbose(`[user:${userId}] unfold start folder_${scenario.key}`);
-      unfold[scenario.key] = await measureVisibilityTransition(
+      const unfoldMeasurement = await measureVisibilityTransition(
         page,
+        userId,
+        `unfold folder_${scenario.key}`,
         scenario.folderName,
         scenario.firstItemName,
         'visible'
       );
+      unfold[scenario.key] = unfoldMeasurement.elapsedMs;
+      backend.unfold[scenario.key] = unfoldMeasurement.backend;
       logVerbose(
         `[user:${userId}] unfold done folder_${scenario.key} ${unfold[
           scenario.key
         ].toFixed(2)}ms`
       );
       logVerbose(`[user:${userId}] fold start folder_${scenario.key}`);
-      fold[scenario.key] = await measureVisibilityTransition(
+      const foldMeasurement = await measureVisibilityTransition(
         page,
+        userId,
+        `fold folder_${scenario.key}`,
         scenario.folderName,
         scenario.firstItemName,
         'hidden'
       );
+      fold[scenario.key] = foldMeasurement.elapsedMs;
+      backend.fold[scenario.key] = foldMeasurement.backend;
       logVerbose(
         `[user:${userId}] fold done folder_${scenario.key} ${fold[
           scenario.key
         ].toFixed(2)}ms`
       );
       logVerbose(`[user:${userId}] re-show start folder_${scenario.key}`);
-      reShow[scenario.key] = await measureVisibilityTransition(
+      const reShowMeasurement = await measureVisibilityTransition(
         page,
+        userId,
+        `re-show folder_${scenario.key}`,
         scenario.folderName,
         scenario.firstItemName,
         'visible'
       );
+      reShow[scenario.key] = reShowMeasurement.elapsedMs;
+      backend.reShow[scenario.key] = reShowMeasurement.backend;
       logVerbose(
         `[user:${userId}] re-show done folder_${scenario.key} ${reShow[
           scenario.key
@@ -325,7 +620,8 @@ async function runSingleBenchmark(context: BrowserContext): Promise<IRunTiming> 
       firstFileBrowserDisplay,
       unfold,
       fold,
-      reShow
+      reShow,
+      backend
     };
   } finally {
     await page.close();
@@ -388,6 +684,23 @@ test.describe.serial('file browser benchmark', () => {
           '10': summarize(runs.map(run => run.reShow['10'])),
           '1000': summarize(runs.map(run => run.reShow['1000'])),
           '10000': summarize(runs.map(run => run.reShow['10000']))
+        }
+      },
+      summaryBreakdownMs: {
+        unfold: {
+          '10': summarizeBackend(runs, 'unfold', '10'),
+          '1000': summarizeBackend(runs, 'unfold', '1000'),
+          '10000': summarizeBackend(runs, 'unfold', '10000')
+        },
+        fold: {
+          '10': summarizeBackend(runs, 'fold', '10'),
+          '1000': summarizeBackend(runs, 'fold', '1000'),
+          '10000': summarizeBackend(runs, 'fold', '10000')
+        },
+        reShow: {
+          '10': summarizeBackend(runs, 'reShow', '10'),
+          '1000': summarizeBackend(runs, 'reShow', '1000'),
+          '10000': summarizeBackend(runs, 'reShow', '10000')
         }
       }
     };
