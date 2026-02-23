@@ -6,6 +6,8 @@
   flex-grow: 1;
   display: flex;
   padding-left: calc(var(--jp-unfold-depth, 0) * var(--indent));
+  content-visibility: auto;
+  contain-intrinsic-size: 24px;
 }
 
 .jp-DirListing-itemName {
