@@ -108,7 +108,7 @@ npx tsc --noEmit               # Check all files
 After editing Python files:
 
 ```bash
-python -m py_compile fitsview/__init__.py  # Check single file for syntax errors
+python -m py_compile jupyterlab_unfold/__init__.py  # Check single file for syntax errors
 ```
 
 ## Coding Standards
@@ -157,7 +157,7 @@ function activate(app: JupyterFrontEnd): void {}
 **✅ Do**: Define plugin ID in `src/index.ts`:
 
 ```typescript
-const PLUGIN_ID = 'fitsview:plugin';
+const PLUGIN_ID = 'jupyterlab_unfold:plugin';
 ```
 
 **✅ Do**: For extensions with multiple commands, create a `src/commands.ts` module to centralize command definitions:
@@ -169,8 +169,8 @@ import { ReadonlyPartialJSONObject } from '@lumino/coreutils';
 
 // Command IDs
 export namespace CommandIDs {
-  export const openPanel = 'fitsview:open-panel';
-  export const refreshData = 'fitsview:refresh-data';
+  export const openPanel = 'jupyterlab_unfold:open-panel';
+  export const refreshData = 'jupyterlab_unfold:refresh-data';
 }
 
 // Command argument types
@@ -220,7 +220,7 @@ import {
 import { registerCommands, CommandIDs, CommandArguments } from './commands';
 
 const plugin: JupyterFrontEndPlugin<void> = {
-  id: 'fitsview:plugin',
+  id: 'jupyterlab_unfold:plugin',
   autoStart: true,
   activate: (app: JupyterFrontEnd) => {
     // Register all commands with JupyterLab's command registry
@@ -342,7 +342,7 @@ Many issues arise from confusing these two steps:
 #### `jlpm build` — Compiles the Extension. Do this every time you change TypeScript code.
 
 - **What it does**: Compiles TypeScript → JavaScript, bundles the extension
-- **Output**: Creates files in `lib/` and `fitsview/labextension/`
+- **Output**: Creates files in `lib/` and `jupyterlab_unfold/labextension/`
 - **What it does NOT do**: Register the extension with JupyterLab
 
 #### `pip install -e .` + `jupyter labextension develop .` — Registers the Extension. Do this once as a setup step.
@@ -434,14 +434,14 @@ jupyter labextension develop . --overwrite
 **4. Ask user to check the browser console** (F12 or Cmd+Option+I):
 
 - Request user to look for JavaScript errors that might prevent extension activation
-- Ask user to search for the extension ID (`fitsview`) to see if it loaded
+- Ask user to search for the extension ID to see if it loaded
 - Ask user to report any error messages or warnings
 
 **5. Verify the build output:**
 
 ```bash
 ls -la lib/                          # Should contain compiled .js files
-ls -la fitsview/labextension/  # Should contain bundled extension
+ls -la jupyterlab_unfold/labextension/  # Should contain bundled extension
 ```
 
 **6. If still not working**, try a clean rebuild following the reset instructions below
@@ -550,7 +550,7 @@ try {
 **✅ Do**: Namespace all CSS in `style/index.css`
 
 ```css
-.jp-fitsview-widget {
+.jp-jupyterlab_unfold-widget {
   padding: 8px;
 }
 ```
@@ -576,48 +576,12 @@ dispose(): void {
 
 Use these patterns consistently throughout your code:
 
-- **Plugin ID** (in `src/index.ts`): `'fitsview:plugin'`
-- **Command IDs** (in `src/commands.ts` or `src/index.ts`): `'fitsview:command-name'`
+- **Plugin ID** (in `src/index.ts`): `'jupyterlab_unfold:plugin'`
+- **Command IDs** (in `src/commands.ts` or `src/index.ts`): `'jupyterlab_unfold:command-name'`
   - For multiple commands, create `src/commands.ts` with a centralized `COMMANDS` mapping
   - For 1-2 commands, define directly in `src/index.ts`
-- **CSS classes** (in `style/index.css`): `.jp-fitsview-ClassName`
+- **CSS classes** (in `style/index.css`): `.jp-jupyterlab_unfold-ClassName`
 
 ### Essential Commands
 
 See [Development Workflow](#development-workflow) section for full command reference.
-
-## Viewarr (Rust/WASM Image Viewer)
-
-The `viewarr/` directory contains a Rust/WASM image viewer built with egui. This is a separate component that compiles to WebAssembly and is bundled into the JupyterLab extension.
-
-### Building Viewarr
-
-**ALWAYS use the npm scripts in the viewarr package to build WASM:**
-
-```bash
-cd viewarr
-npm run build         # Release build (optimized)
-npm run build:dev     # Debug build (faster compilation, includes debug info)
-```
-
-**❌ Don't**: Run `wasm-pack` directly — the npm scripts handle the wrapper bundling step that copies the JavaScript wrapper files into `pkg/`.
-
-### What the Build Does
-
-1. Compiles Rust to WebAssembly via `wasm-pack`
-2. Copies the JavaScript wrapper (`js/index.js`) to `pkg/wrapper.js`
-3. Updates `pkg/package.json` to point to the wrapper as the entry point
-
-### After Modifying Viewarr
-
-After making changes to Rust code in `viewarr/src/`:
-
-```bash
-cd viewarr && npm run build   # Rebuild WASM
-cd .. && jlpm install         # Copy updated WASM to node_modules (REQUIRED!)
-jlpm build                    # Rebuild JupyterLab extension to bundle new WASM
-```
-
-Then refresh JupyterLab in the browser (or restart if needed).
-
-**⚠️ Important:** The `jlpm install` step is critical! Webpack reads from `node_modules/viewarr/`, not directly from `viewarr/pkg/`. Without this step, the old WASM will be bundled even after rebuilding.
