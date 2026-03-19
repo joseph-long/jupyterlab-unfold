@@ -47,8 +47,15 @@ export class DragDropController {
     this.stopEdgeAutoScroll();
   }
 
-  handleDragLeave(clientX: number, clientY: number, rootNode: HTMLElement): void {
-    if (rootNode && rootNode.contains(document.elementFromPoint(clientX, clientY))) {
+  handleDragLeave(
+    clientX: number,
+    clientY: number,
+    rootNode: HTMLElement
+  ): void {
+    if (
+      rootNode &&
+      rootNode.contains(document.elementFromPoint(clientX, clientY))
+    ) {
       return;
     }
     this.cleanup();
@@ -59,11 +66,16 @@ export class DragDropController {
     clientY: number,
     target?: HTMLElement | null
   ): string | null {
-    const directRow = target?.closest('.jp-DirListing-item') as HTMLElement | null;
+    const directRow = target?.closest(
+      '.jp-DirListing-item'
+    ) as HTMLElement | null;
     if (directRow) {
       return directRow.getAttribute('data-path');
     }
-    const hovered = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
+    const hovered = document.elementFromPoint(
+      clientX,
+      clientY
+    ) as HTMLElement | null;
     const row = hovered?.closest('.jp-DirListing-item') as HTMLElement | null;
     return row?.getAttribute('data-path') ?? null;
   }

@@ -31,7 +31,10 @@ export function buildLabUrl(
   return labUrl.toString();
 }
 
-export function buildContentsApiUrl(rawTarget: string, contentPath: string): string {
+export function buildContentsApiUrl(
+  rawTarget: string,
+  contentPath: string
+): string {
   const labUrl = normalizeLabUrl(rawTarget);
   const apiUrl = new URL(labUrl.origin);
   const encodedPath = contentPath

@@ -35,7 +35,10 @@ export class VirtualizationController {
     return itemCount >= this._threshold;
   }
 
-  computeWindow(allItems: Contents.IModel[], contentNode: HTMLElement): IVirtualizationWindow {
+  computeWindow(
+    allItems: Contents.IModel[],
+    contentNode: HTMLElement
+  ): IVirtualizationWindow {
     if (!this.shouldVirtualize(allItems.length)) {
       this._lastRange = { start: -1, end: -1 };
       return {
@@ -63,7 +66,11 @@ export class VirtualizationController {
     };
   }
 
-  applySpacers(contentNode: HTMLElement, topPx: number, bottomPx: number): void {
+  applySpacers(
+    contentNode: HTMLElement,
+    topPx: number,
+    bottomPx: number
+  ): void {
     if (!this._topSpacer) {
       this._topSpacer = document.createElement('li');
       this._topSpacer.className = 'jp-unfold-virtual-spacer';

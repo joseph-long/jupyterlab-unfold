@@ -26,7 +26,11 @@ function logVerbose(message: string): void {
   console.info(`[dnd ${timestamp}] ${message}`);
 }
 
-async function dragBetween(page: Page, sourcePath: string, targetPath: string): Promise<void> {
+async function dragBetween(
+  page: Page,
+  sourcePath: string,
+  targetPath: string
+): Promise<void> {
   logVerbose(`drag start ${sourcePath} -> ${targetPath}`);
   const source = page.locator(itemByPath(sourcePath)).first();
   const target = page.locator(itemByPath(targetPath)).first();
@@ -51,7 +55,11 @@ async function dragBetween(page: Page, sourcePath: string, targetPath: string): 
 
 async function openFixtureRoot(page: Page): Promise<void> {
   await page.hover(itemByPath(fixtureRoot));
-  await ensureFolderExpanded(page, fixtureRoot, prefixPath(fixtureRoot, 'dir1'));
+  await ensureFolderExpanded(
+    page,
+    fixtureRoot,
+    prefixPath(fixtureRoot, 'dir1')
+  );
 }
 
 test.describe.serial('jupyterlab-unfold drag and drop', () => {
@@ -76,12 +84,19 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await materializeRow(page, sourcePath, { resetToTop: true, maxScrollSteps: 180 });
+    await materializeRow(page, sourcePath, {
+      resetToTop: true,
+      maxScrollSteps: 180
+    });
 
     await dragBetween(page, sourcePath, prefixPath(fixtureRoot, 'dir2'));
 
-    await expect.poll(() => pathExists(page, TARGET_URL, movedPath)).toBeTruthy();
-    await expect.poll(() => pathExists(page, TARGET_URL, sourcePath)).toBeFalsy();
+    await expect
+      .poll(() => pathExists(page, TARGET_URL, movedPath))
+      .toBeTruthy();
+    await expect
+      .poll(() => pathExists(page, TARGET_URL, sourcePath))
+      .toBeFalsy();
     logVerbose('asserted basic move');
 
     await deletePath(page, TARGET_URL, movedPath);
@@ -90,9 +105,14 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
   test('spring-loads a folder while dragging and drops into child folder', async ({
     page
   }) => {
-    logVerbose('test begin: spring-loads a folder while dragging and drops into child folder');
+    logVerbose(
+      'test begin: spring-loads a folder while dragging and drops into child folder'
+    );
     const sourcePath = prefixPath(fixtureRoot, 'drag-spring-source.txt');
-    const movedPath = prefixPath(fixtureRoot, 'dir2/dir3/drag-spring-source.txt');
+    const movedPath = prefixPath(
+      fixtureRoot,
+      'dir2/dir3/drag-spring-source.txt'
+    );
     await installWorkspaceRouteMock(page);
     await deletePath(page, TARGET_URL, movedPath);
     await deletePath(page, TARGET_URL, sourcePath);
@@ -102,13 +122,18 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await materializeRow(page, sourcePath, { resetToTop: true, maxScrollSteps: 180 });
+    await materializeRow(page, sourcePath, {
+      resetToTop: true,
+      maxScrollSteps: 180
+    });
     await materializeRow(page, prefixPath(fixtureRoot, 'dir2'), {
       maxScrollSteps: 180
     });
 
     const source = page.locator(itemByPath(sourcePath)).first();
-    const dir2 = page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2'))).first();
+    const dir2 = page
+      .locator(itemByPath(prefixPath(fixtureRoot, 'dir2')))
+      .first();
     await source.waitFor({ state: 'visible' });
     await dir2.waitFor({ state: 'visible' });
     const sourceBox = await source.boundingBox();
@@ -132,15 +157,22 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     );
     logVerbose('hovering on dir2 for spring-load');
     await page.waitForTimeout(700);
-    await page.waitForSelector(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')), {
-      state: 'visible'
-    });
+    await page.waitForSelector(
+      itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')),
+      {
+        state: 'visible'
+      }
+    );
     logVerbose(`spring-load opened ${prefixPath(fixtureRoot, 'dir2/dir3')}`);
 
-    const dir3 = page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3'))).first();
+    const dir3 = page
+      .locator(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')))
+      .first();
     const dir3Box = await dir3.boundingBox();
     if (!dir3Box) {
-      throw new Error('Could not compute spring-loaded child folder bounding box');
+      throw new Error(
+        'Could not compute spring-loaded child folder bounding box'
+      );
     }
     await page.mouse.move(
       dir3Box.x + dir3Box.width / 2,
@@ -150,8 +182,12 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     await page.mouse.up();
     logVerbose(`dropped into ${prefixPath(fixtureRoot, 'dir2/dir3')}`);
 
-    await expect.poll(() => pathExists(page, TARGET_URL, movedPath)).toBeTruthy();
-    await expect.poll(() => pathExists(page, TARGET_URL, sourcePath)).toBeFalsy();
+    await expect
+      .poll(() => pathExists(page, TARGET_URL, movedPath))
+      .toBeTruthy();
+    await expect
+      .poll(() => pathExists(page, TARGET_URL, sourcePath))
+      .toBeFalsy();
     logVerbose('asserted spring-load move');
 
     await deletePath(page, TARGET_URL, movedPath);
@@ -170,13 +206,18 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('navigated to lab');
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await openFixtureRoot(page);
-    await materializeRow(page, sourcePath, { resetToTop: true, maxScrollSteps: 180 });
+    await materializeRow(page, sourcePath, {
+      resetToTop: true,
+      maxScrollSteps: 180
+    });
     await materializeRow(page, prefixPath(fixtureRoot, 'dir2'), {
       maxScrollSteps: 180
     });
 
     const source = page.locator(itemByPath(sourcePath)).first();
-    const dir2 = page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2'))).first();
+    const dir2 = page
+      .locator(itemByPath(prefixPath(fixtureRoot, 'dir2')))
+      .first();
     const sourceBox = await source.boundingBox();
     const dir2Box = await dir2.boundingBox();
     if (!sourceBox || !dir2Box) {
@@ -193,15 +234,23 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     );
     await page.keyboard.down('Control');
     logVerbose('copy modifier held');
-    await page.mouse.move(dir2Box.x + dir2Box.width / 2, dir2Box.y + dir2Box.height / 2, {
-      steps: 10
-    });
+    await page.mouse.move(
+      dir2Box.x + dir2Box.width / 2,
+      dir2Box.y + dir2Box.height / 2,
+      {
+        steps: 10
+      }
+    );
     await page.mouse.up();
     await page.keyboard.up('Control');
     logVerbose('copy modifier released');
 
-    await expect.poll(() => pathExists(page, TARGET_URL, copiedPath)).toBeTruthy();
-    await expect.poll(() => pathExists(page, TARGET_URL, sourcePath)).toBeTruthy();
+    await expect
+      .poll(() => pathExists(page, TARGET_URL, copiedPath))
+      .toBeTruthy();
+    await expect
+      .poll(() => pathExists(page, TARGET_URL, sourcePath))
+      .toBeTruthy();
     logVerbose('asserted copy behavior');
 
     await deletePath(page, TARGET_URL, copiedPath);
@@ -211,7 +260,9 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
   test('auto-scrolls virtualized lists while dragging to an offscreen target', async ({
     page
   }) => {
-    logVerbose('test begin: auto-scrolls virtualized lists while dragging to an offscreen target');
+    logVerbose(
+      'test begin: auto-scrolls virtualized lists while dragging to an offscreen target'
+    );
     const largeFolder = prefixPath(fixtureRoot, 'benchmark-tree/folder_10000');
     const sourcePath = `${largeFolder}/f10000-item-00001.txt`;
 
@@ -270,7 +321,10 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     );
 
     const scrollBefore = await content.evaluate(node => node.scrollTop);
-    await page.mouse.move(contentBox.x + contentBox.width / 2, contentBox.y + contentBox.height - 3);
+    await page.mouse.move(
+      contentBox.x + contentBox.width / 2,
+      contentBox.y + contentBox.height - 3
+    );
     logVerbose('holding near bottom edge to trigger auto-scroll');
     for (let i = 0; i < 120; i += 1) {
       await page.waitForTimeout(25);
@@ -303,7 +357,9 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     }, largeFolder);
 
     const visibleBeforeSet = new Set(visiblePathsBefore);
-    const targetPath = visiblePathsAfter.find(path => !visibleBeforeSet.has(path));
+    const targetPath = visiblePathsAfter.find(
+      path => !visibleBeforeSet.has(path)
+    );
     if (!targetPath) {
       throw new Error(
         'Auto-scroll did not reveal any new visible row; refusing to target a row that was already visible'

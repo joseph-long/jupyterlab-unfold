@@ -6,7 +6,10 @@ import {
 } from './helpers/fixture';
 import { installWorkspaceRouteMock } from './helpers/jupyter-api';
 import { itemByPath } from './helpers/selectors';
-import { ensureFolderExpanded, scrollUntilPathVisible } from './helpers/tree-ui';
+import {
+  ensureFolderExpanded,
+  scrollUntilPathVisible
+} from './helpers/tree-ui';
 import { buildLabUrl } from './helpers/urls';
 
 const TARGET_URL = process.env.TARGET_URL ?? 'http://localhost:10888';
@@ -38,7 +41,11 @@ test.describe.serial('jupyterlab-unfold', () => {
     await page.waitForSelector('div[role="main"] >> text=Launcher');
 
     await page.hover(itemByPath(fixtureRoot));
-    await ensureFolderExpanded(page, fixtureRoot, prefixPath(fixtureRoot, 'dir1'));
+    await ensureFolderExpanded(
+      page,
+      fixtureRoot,
+      prefixPath(fixtureRoot, 'dir1')
+    );
     await expect(page.locator(TREE_LOCATOR)).toContainText('dir1');
 
     await ensureFolderExpanded(
@@ -46,7 +53,9 @@ test.describe.serial('jupyterlab-unfold', () => {
       prefixPath(fixtureRoot, 'dir1'),
       prefixPath(fixtureRoot, 'dir2')
     );
-    await expect(page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2')))).toBeVisible();
+    await expect(
+      page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2')))
+    ).toBeVisible();
 
     await ensureFolderExpanded(
       page,
@@ -67,9 +76,12 @@ test.describe.serial('jupyterlab-unfold', () => {
     ).toBeVisible();
 
     await page.click(itemByPath(prefixPath(fixtureRoot, 'dir2')));
-    await page.waitForSelector(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')), {
-      state: 'detached'
-    });
+    await page.waitForSelector(
+      itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')),
+      {
+        state: 'detached'
+      }
+    );
     await expect(
       page.locator(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3')))
     ).toHaveCount(0);
@@ -89,7 +101,11 @@ test.describe.serial('jupyterlab-unfold', () => {
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector('div[role="main"] >> text=Launcher');
     await page.hover(itemByPath(fixtureRoot));
-    await ensureFolderExpanded(page, fixtureRoot, prefixPath(fixtureRoot, 'dir2'));
+    await ensureFolderExpanded(
+      page,
+      fixtureRoot,
+      prefixPath(fixtureRoot, 'dir2')
+    );
     await ensureFolderExpanded(
       page,
       prefixPath(fixtureRoot, 'dir2'),
@@ -101,9 +117,13 @@ test.describe.serial('jupyterlab-unfold', () => {
       prefixPath(fixtureRoot, 'dir2/dir3/file211.txt')
     );
 
-    await page.dblclick(itemByPath(prefixPath(fixtureRoot, 'dir2/dir3/file211.txt')));
+    await page.dblclick(
+      itemByPath(prefixPath(fixtureRoot, 'dir2/dir3/file211.txt'))
+    );
     await page.waitForSelector('[role="main"] >> text=file211.txt');
-    await expect(page.locator('.lm-DockPanel-tabBar')).toContainText('file211.txt');
+    await expect(page.locator('.lm-DockPanel-tabBar')).toContainText(
+      'file211.txt'
+    );
   });
 
   test('keeps materializing new rows during rapid virtualized scrolling', async ({
@@ -131,17 +151,23 @@ test.describe.serial('jupyterlab-unfold', () => {
     await page.waitForSelector('#jupyterlab-splash', { state: 'detached' });
     await page.waitForSelector('div[role="main"] >> text=Launcher');
     await page.click(itemByPath(fixtureRoot));
-    await page.waitForSelector(itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')), {
-      state: 'visible'
-    });
+    await page.waitForSelector(
+      itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')),
+      {
+        state: 'visible'
+      }
+    );
 
     const largeFolder = prefixPath(fixtureRoot, 'benchmark-tree/folder_10000');
     await page.click(itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')));
     await page.waitForSelector(itemByPath(largeFolder), { state: 'visible' });
     await page.click(itemByPath(largeFolder));
-    await page.waitForSelector(itemByPath(`${largeFolder}/f10000-item-00000.txt`), {
-      state: 'visible'
-    });
+    await page.waitForSelector(
+      itemByPath(`${largeFolder}/f10000-item-00000.txt`),
+      {
+        state: 'visible'
+      }
+    );
     const farTarget = `${largeFolder}/f10000-item-04000.txt`;
     await expect(page.locator(itemByPath(farTarget))).toHaveCount(0);
     logVerbose(`scrolling toward ${farTarget}`);

@@ -1,8 +1,5 @@
 import { ServerConnection, Contents } from '@jupyterlab/services';
-import {
-  ITreeListingDiagnostics,
-  fetchTreeListing
-} from '../api';
+import { ITreeListingDiagnostics, fetchTreeListing } from '../api';
 import {
   buildExpandedPaths,
   normalizePath,

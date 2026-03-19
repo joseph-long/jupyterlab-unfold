@@ -88,7 +88,9 @@ function emitBenchmarkEvent(event: IBenchmarkEvent): void {
   }
 
   const benchmarkWindow = window as IBenchmarkWindow;
-  if (typeof benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__ === 'function') {
+  if (
+    typeof benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__ === 'function'
+  ) {
     try {
       benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__(event);
     } catch (error) {
@@ -187,8 +189,14 @@ export class FileTreeRenderer extends DirListing.Renderer {
     cachedNode.__jpUnfoldItemNodeRefs__ = {
       iconContainer: DOMUtils.findElement(node, 'jp-DirListing-itemIcon'),
       textContainer: DOMUtils.findElement(node, 'jp-DirListing-itemText'),
-      modifiedContainer: DOMUtils.findElement(node, 'jp-DirListing-itemModified'),
-      fileSizeContainer: DOMUtils.findElement(node, 'jp-DirListing-itemFileSize')
+      modifiedContainer: DOMUtils.findElement(
+        node,
+        'jp-DirListing-itemModified'
+      ),
+      fileSizeContainer: DOMUtils.findElement(
+        node,
+        'jp-DirListing-itemFileSize'
+      )
     };
     return node;
   }
@@ -211,8 +219,14 @@ export class FileTreeRenderer extends DirListing.Renderer {
     const refs = cachedNode.__jpUnfoldItemNodeRefs__ ?? {
       iconContainer: DOMUtils.findElement(node, 'jp-DirListing-itemIcon'),
       textContainer: DOMUtils.findElement(node, 'jp-DirListing-itemText'),
-      modifiedContainer: DOMUtils.findElement(node, 'jp-DirListing-itemModified'),
-      fileSizeContainer: DOMUtils.findElement(node, 'jp-DirListing-itemFileSize')
+      modifiedContainer: DOMUtils.findElement(
+        node,
+        'jp-DirListing-itemModified'
+      ),
+      fileSizeContainer: DOMUtils.findElement(
+        node,
+        'jp-DirListing-itemFileSize'
+      )
     };
     cachedNode.__jpUnfoldItemNodeRefs__ = refs;
 
@@ -350,7 +364,10 @@ export class DirTreeListing extends DirListing {
 
     while (nodes.length < virtualWindow.visibleItems.length) {
       // @ts-ignore signature variations across JupyterLab versions
-      const node = renderer.createItemNode(this._hiddenColumns, this._columnSizes);
+      const node = renderer.createItemNode(
+        this._hiddenColumns,
+        this._columnSizes
+      );
       node.classList.add('jp-DirListing-item');
       nodes.push(node);
       if (this._virtualization.bottomSpacer?.parentElement === content) {
@@ -569,7 +586,10 @@ export class DirTreeListing extends DirListing {
           if (scrollTarget === this.contentNode) {
             this._virtualization.scheduleUpdate(
               this.contentNode,
-              () => this._virtualization.resolveAllItems(toArray(this.model.items())),
+              () =>
+                this._virtualization.resolveAllItems(
+                  toArray(this.model.items())
+                ),
               () => this.update()
             );
           }
@@ -604,7 +624,9 @@ export class DirTreeListing extends DirListing {
     const row = target?.closest('.jp-DirListing-item') as HTMLElement | null;
     const rowPath = row?.getAttribute('data-path');
     if (rowPath) {
-      const matched = toArray(this.model.items()).find(item => item.path === rowPath);
+      const matched = toArray(this.model.items()).find(
+        item => item.path === rowPath
+      );
       if (matched) {
         return matched;
       }
@@ -795,7 +817,11 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
       getDirectoryContents: async dirPath => this.getDirectoryContents(dirPath)
     });
 
-    if (result.source === 'server' && result.diagnostics && result.serverMetadata) {
+    if (
+      result.source === 'server' &&
+      result.diagnostics &&
+      result.serverMetadata
+    ) {
       emitBenchmarkEvent({
         type: 'tree-fetch',
         requestId: result.diagnostics.requestId,
@@ -853,7 +879,9 @@ export class FilterFileTreeBrowserModel extends FilterFileBrowserModel {
     }
 
     const result = await this.contentManager.get(path);
-    const sortedContent = result.content ? this.sortContents(result.content) : [];
+    const sortedContent = result.content
+      ? this.sortContents(result.content)
+      : [];
     this._directoryCache.set(path, sortedContent);
     return sortedContent;
   }

@@ -10,8 +10,10 @@ export async function installWorkspaceRouteMock(
   page: Page,
   initialState?: IWorkspaceDocument
 ): Promise<void> {
-  let workspace: IWorkspaceDocument =
-    initialState ?? { data: {}, metadata: { id: 'default' } };
+  let workspace: IWorkspaceDocument = initialState ?? {
+    data: {},
+    metadata: { id: 'default' }
+  };
 
   await page.route(/.*\/api\/workspaces.*/, (route, request) => {
     if (request.method() === 'GET') {
@@ -37,9 +39,12 @@ export async function putDirectory(
   targetUrl: string,
   contentPath: string
 ): Promise<void> {
-  const response = await page.request.put(buildContentsApiUrl(targetUrl, contentPath), {
-    data: { type: 'directory' }
-  });
+  const response = await page.request.put(
+    buildContentsApiUrl(targetUrl, contentPath),
+    {
+      data: { type: 'directory' }
+    }
+  );
   if (response.status() !== 201 && response.status() !== 200) {
     throw new Error(
       `Failed to create directory ${contentPath}: HTTP ${response.status()}`
@@ -53,11 +58,16 @@ export async function putFile(
   contentPath: string,
   content: string
 ): Promise<void> {
-  const response = await page.request.put(buildContentsApiUrl(targetUrl, contentPath), {
-    data: { type: 'file', format: 'text', content }
-  });
+  const response = await page.request.put(
+    buildContentsApiUrl(targetUrl, contentPath),
+    {
+      data: { type: 'file', format: 'text', content }
+    }
+  );
   if (response.status() !== 201 && response.status() !== 200) {
-    throw new Error(`Failed to create file ${contentPath}: HTTP ${response.status()}`);
+    throw new Error(
+      `Failed to create file ${contentPath}: HTTP ${response.status()}`
+    );
   }
 }
 
@@ -70,7 +80,9 @@ export async function deletePath(
     buildContentsApiUrl(targetUrl, contentPath)
   );
   if (response.status() !== 204 && response.status() !== 404) {
-    throw new Error(`Failed to delete ${contentPath}: HTTP ${response.status()}`);
+    throw new Error(
+      `Failed to delete ${contentPath}: HTTP ${response.status()}`
+    );
   }
 }
 
@@ -79,6 +91,8 @@ export async function pathExists(
   targetUrl: string,
   contentPath: string
 ): Promise<boolean> {
-  const response = await page.request.get(buildContentsApiUrl(targetUrl, contentPath));
+  const response = await page.request.get(
+    buildContentsApiUrl(targetUrl, contentPath)
+  );
   return response.status() === 200;
 }

@@ -44,7 +44,9 @@ function touchFile(filePath: string): void {
 
 function ensureBaseStructureExists(): void {
   if (
-    fs.existsSync(path.join(GENERATED_FIXTURE_ROOT, 'dir2', 'dir3', 'file211.txt'))
+    fs.existsSync(
+      path.join(GENERATED_FIXTURE_ROOT, 'dir2', 'dir3', 'file211.txt')
+    )
   ) {
     return;
   }
@@ -83,7 +85,9 @@ function pruneStaleFixtureRoots(): void {
 
 function copyStructureInto(targetDir: string): void {
   ensureBaseStructureExists();
-  const entries = fs.readdirSync(GENERATED_FIXTURE_ROOT, { withFileTypes: true });
+  const entries = fs.readdirSync(GENERATED_FIXTURE_ROOT, {
+    withFileTypes: true
+  });
   for (const entry of entries) {
     if (entry.name.startsWith(TEMP_PREFIX)) {
       continue;
@@ -102,7 +106,9 @@ export function createIsolatedFixtureRoot(): string {
   installCleanupHooks();
   pruneStaleFixtureRoots();
   fs.mkdirSync(SCRATCH_ROOT, { recursive: true });
-  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = `${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
   const rootName = `${TEMP_PREFIX}${id}`;
   const rootDir = path.join(SCRATCH_ROOT, rootName);
   fs.mkdirSync(rootDir, { recursive: true });

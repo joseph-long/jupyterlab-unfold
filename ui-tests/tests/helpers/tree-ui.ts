@@ -10,7 +10,9 @@ export async function isRowVisibleInContainer(
   return page.evaluate(
     ({ rowSelector, contentSelector }) => {
       const row = document.querySelector(rowSelector) as HTMLElement | null;
-      const content = document.querySelector(contentSelector) as HTMLElement | null;
+      const content = document.querySelector(
+        contentSelector
+      ) as HTMLElement | null;
       if (!row || !content) {
         return false;
       }
@@ -93,7 +95,10 @@ export async function ensureFolderExpanded(
   }
 
   const child = page.locator(itemByPath(expectedChildPath)).first();
-  if ((await child.count()) > 0 && (await child.isVisible().catch(() => false))) {
+  if (
+    (await child.count()) > 0 &&
+    (await child.isVisible().catch(() => false))
+  ) {
     return;
   }
 
@@ -130,7 +135,8 @@ export async function scrollUntilPathVisible(
 ): Promise<number> {
   const maxSteps = options.maxSteps ?? 140;
   const scrollDelta = options.scrollDelta ?? 420;
-  const contentClassSelector = options.contentClassSelector ?? '.jp-DirListing-content';
+  const contentClassSelector =
+    options.contentClassSelector ?? '.jp-DirListing-content';
 
   const contentDataAttr = `data-unfold-scroll-target-${Math.random()
     .toString(16)
@@ -141,8 +147,12 @@ export async function scrollUntilPathVisible(
   await anchorRow.waitFor({ state: 'visible', timeout: 30_000 });
   await page.evaluate(
     ({ anchorSelector, contentAttr, contentClassSelector }) => {
-      const anchor = document.querySelector(anchorSelector) as HTMLElement | null;
-      const content = anchor?.closest(contentClassSelector) as HTMLElement | null;
+      const anchor = document.querySelector(
+        anchorSelector
+      ) as HTMLElement | null;
+      const content = anchor?.closest(
+        contentClassSelector
+      ) as HTMLElement | null;
       if (!content) {
         throw new Error('Could not resolve listing content from anchor row');
       }
@@ -186,10 +196,14 @@ export async function scrollUntilPathVisible(
         await page.waitForTimeout(10);
         if (await isRowVisibleInContainer(page, targetPath, contentSelector)) {
           await page.waitForTimeout(10);
-          if (await isRowVisibleInContainer(page, targetPath, contentSelector)) {
+          if (
+            await isRowVisibleInContainer(page, targetPath, contentSelector)
+          ) {
             await candidate.scrollIntoViewIfNeeded();
             await page.waitForTimeout(10);
-            if (await isRowVisibleInContainer(page, targetPath, contentSelector)) {
+            if (
+              await isRowVisibleInContainer(page, targetPath, contentSelector)
+            ) {
               return maxObservedIndex;
             }
           }
@@ -199,7 +213,9 @@ export async function scrollUntilPathVisible(
       maxObservedIndex = Math.max(
         maxObservedIndex,
         await page.evaluate(selector => {
-          const rows = Array.from(document.querySelectorAll<HTMLElement>(selector));
+          const rows = Array.from(
+            document.querySelectorAll<HTMLElement>(selector)
+          );
           let maxIndex = -1;
           for (const row of rows) {
             const rowPath = row.getAttribute('data-path') ?? '';
@@ -222,12 +238,17 @@ export async function scrollUntilPathVisible(
 
       const scrollState = await page.evaluate(
         ({ contentSelector, delta }) => {
-          const content = document.querySelector(contentSelector) as HTMLElement | null;
+          const content = document.querySelector(
+            contentSelector
+          ) as HTMLElement | null;
           if (!content) {
             return { previousTop: 0, nextTop: 0, maxTop: 0 };
           }
           const previousTop = content.scrollTop;
-          const maxTop = Math.max(0, content.scrollHeight - content.clientHeight);
+          const maxTop = Math.max(
+            0,
+            content.scrollHeight - content.clientHeight
+          );
           content.scrollTop = Math.min(maxTop, previousTop + delta);
           return { previousTop, nextTop: content.scrollTop, maxTop };
         },

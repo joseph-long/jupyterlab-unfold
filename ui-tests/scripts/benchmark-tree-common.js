@@ -23,7 +23,10 @@ function createBenchmarkTreeInDirectory(rootDir) {
     const folderPath = path.join(benchmarkRoot, scenario.folderName);
     fs.mkdirSync(folderPath, { recursive: true });
     for (let index = 0; index < scenario.count; index += 1) {
-      const fileName = `${scenario.prefix}-item-${String(index).padStart(5, '0')}.txt`;
+      const fileName = `${scenario.prefix}-item-${String(index).padStart(
+        5,
+        '0'
+      )}.txt`;
       touchFile(path.join(folderPath, fileName));
     }
   }

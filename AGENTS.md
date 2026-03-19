@@ -23,21 +23,25 @@ Use your available tools (web search, documentation search) to access and retrie
 **These resources are PRIORITY references. Always check them when you need external information:**
 
 1. **JupyterLab Extension Developer Guide**
+
    - URL: https://jupyterlab.readthedocs.io/en/stable/extension/extension_dev.html
    - Use for: Extension patterns, architecture overview, development workflow, and best practices
    - **Action**: Use web search or documentation tools to retrieve specific sections when needed
 
 2. **JupyterLab API Reference (Frontend)**
+
    - URL: https://jupyterlab.readthedocs.io/en/latest/api/index.html
    - Use for: Complete API reference for all JupyterLab frontend packages, interfaces, classes, and methods
    - **Action**: Search for specific APIs when you need method signatures, interface definitions, or class documentation. For example, search "JupyterLab IRenderMime.IRenderer" or "JupyterLab ICommandPalette"
 
 3. **JupyterLab Extension Examples Repository**
+
    - URL: https://github.com/jupyterlab/extension-examples
    - Use for: Working code examples, implementation patterns, complete working extensions
    - **Action**: Search this repository for similar features before implementing from scratch
 
 4. **JupyterLab Core Repository**
+
    - URL: https://github.com/jupyterlab/jupyterlab
    - Use for: Reference implementations in `packages/` directory - all core packages are extensions themselves
    - **Action**: When implementing complex features, search this repo for how core extensions solve similar problems

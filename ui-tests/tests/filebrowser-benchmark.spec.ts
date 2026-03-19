@@ -146,7 +146,11 @@ function logProbeTimings(
 
   if (treeMs || encodeMs || totalMs || itemCount || listedDirs) {
     logVerbose(
-      `[user:${userId}] probe timings headers tree_ms=${treeMs ?? 'n/a'} encode_ms=${encodeMs ?? 'n/a'} total_ms=${totalMs ?? 'n/a'} item_count=${itemCount ?? 'n/a'} listed_dirs=${listedDirs ?? 'n/a'}`
+      `[user:${userId}] probe timings headers tree_ms=${
+        treeMs ?? 'n/a'
+      } encode_ms=${encodeMs ?? 'n/a'} total_ms=${
+        totalMs ?? 'n/a'
+      } item_count=${itemCount ?? 'n/a'} listed_dirs=${listedDirs ?? 'n/a'}`
     );
   }
 
@@ -156,7 +160,6 @@ function logProbeTimings(
     );
   }
 }
-
 
 const SCENARIOS: IScenario[] = [
   {
@@ -223,7 +226,9 @@ function emptyBackendStepTiming(): IBackendStepTiming {
   };
 }
 
-function summarizeNullable(values: Array<number | null>): IBenchmarkSummary | null {
+function summarizeNullable(
+  values: Array<number | null>
+): IBenchmarkSummary | null {
   const present = values.filter((value): value is number => value !== null);
   if (present.length === 0) {
     return null;
@@ -241,7 +246,9 @@ function summarizeBackend(
     treeMs: summarizeNullable(metrics.map(value => value.treeMs)),
     encodeMs: summarizeNullable(metrics.map(value => value.encodeMs)),
     totalMs: summarizeNullable(metrics.map(value => value.totalMs)),
-    clientRequestMs: summarizeNullable(metrics.map(value => value.clientRequestMs)),
+    clientRequestMs: summarizeNullable(
+      metrics.map(value => value.clientRequestMs)
+    ),
     clientJsonMs: summarizeNullable(metrics.map(value => value.clientJsonMs)),
     clientFetchTotalMs: summarizeNullable(
       metrics.map(value => value.clientFetchTotalMs)
@@ -322,9 +329,8 @@ async function measureVisibilityTransition(
 
   await waitForMaterializedVisibleRow(folderPath);
 
-  let treeResponse:
-    | Awaited<ReturnType<Page['waitForResponse']>>
-    | undefined = undefined;
+  let treeResponse: Awaited<ReturnType<Page['waitForResponse']>> | undefined =
+    undefined;
   let startTime = 0;
   let clickAttempts = 0;
   const maxClickAttempts = 3;
@@ -420,13 +426,19 @@ async function measureVisibilityTransition(
     } open_paths=${backend.openPathsCount ?? 'n/a'}`;
     logProbeTimings(userId, headers);
     logVerbose(
-      `[user:${userId}] ${stepLabel} response status=${backend.status} ui_ms=${elapsedMs.toFixed(
+      `[user:${userId}] ${stepLabel} response status=${
+        backend.status
+      } ui_ms=${elapsedMs.toFixed(
         2
       )} click_to_response_ms=${clickToResponseMs.toFixed(
         2
       )} response_to_visible_ms=${responseToVisibleMs.toFixed(
         2
-      )} client_fetch_ms=${backend.clientFetchTotalMs?.toFixed(2) ?? 'n/a'} client_model_ms=${backend.clientModelTotalMs?.toFixed(2) ?? 'n/a'}${requestContext}`
+      )} client_fetch_ms=${
+        backend.clientFetchTotalMs?.toFixed(2) ?? 'n/a'
+      } client_model_ms=${
+        backend.clientModelTotalMs?.toFixed(2) ?? 'n/a'
+      }${requestContext}`
     );
   }
 
@@ -481,12 +493,15 @@ async function runSingleBenchmark(
 
     logVerbose(`[user:${userId}] starting benchmark run`);
     logVerbose(`[user:${userId}] probing ${buildTreeEndpointUrl(TARGET_URL)}`);
-    const treeProbe = await page.request.post(buildTreeEndpointUrl(TARGET_URL), {
-      data: {
-        path: '',
-        include_timings: VERBOSE
+    const treeProbe = await page.request.post(
+      buildTreeEndpointUrl(TARGET_URL),
+      {
+        data: {
+          path: '',
+          include_timings: VERBOSE
+        }
       }
-    });
+    );
     logVerbose(
       `[user:${userId}] server probe status=${treeProbe.status()} ok=${treeProbe.ok()}`
     );
@@ -510,7 +525,9 @@ async function runSingleBenchmark(
     }
     if (!treeProbe.ok()) {
       throw new Error(
-        `Server endpoint ${buildTreeEndpointUrl(TARGET_URL)} check failed with HTTP ${treeProbe.status()}.`
+        `Server endpoint ${buildTreeEndpointUrl(
+          TARGET_URL
+        )} check failed with HTTP ${treeProbe.status()}.`
       );
     }
 
@@ -528,16 +545,21 @@ async function runSingleBenchmark(
     });
     const firstFileBrowserDisplay = performance.now() - navigationStart;
     logVerbose(
-      `[user:${userId}] first file browser display ${firstFileBrowserDisplay.toFixed(2)}ms`
+      `[user:${userId}] first file browser display ${firstFileBrowserDisplay.toFixed(
+        2
+      )}ms`
     );
 
     logVerbose(`[user:${userId}] expanding ${fixtureRoot}`);
     await page.click(itemByPath(fixtureRoot));
     try {
-      await page.waitForSelector(itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')), {
-        state: 'visible',
-        timeout: 30_000
-      });
+      await page.waitForSelector(
+        itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')),
+        {
+          state: 'visible',
+          timeout: 30_000
+        }
+      );
       await page.click(itemByPath(prefixPath(fixtureRoot, 'benchmark-tree')));
       await page.waitForSelector(itemByPath(scenarios[0].folderPath), {
         state: 'visible',
@@ -682,10 +704,9 @@ async function runParallelSample(
 }
 
 test.describe.serial('file browser benchmark', () => {
-  test('measures cold and warm file browser timings', async (
-    { browser },
-    testInfo
-  ) => {
+  test('measures cold and warm file browser timings', async ({
+    browser
+  }, testInfo) => {
     test.setTimeout(10 * 60 * 1000);
     const fixtureRoot = createIsolatedFixtureRoot();
     logVerbose(
@@ -699,7 +720,9 @@ test.describe.serial('file browser benchmark', () => {
         const sampleRuns = await runParallelSample(browser, fixtureRoot);
         runs.push(...sampleRuns);
         logVerbose(
-          `completed sample ${sampleIndex + 1}/${SAMPLE_COUNT}; accumulatedRuns=${runs.length}`
+          `completed sample ${
+            sampleIndex + 1
+          }/${SAMPLE_COUNT}; accumulatedRuns=${runs.length}`
         );
       }
 
