@@ -83,7 +83,7 @@ jobs:
   integration-tests:
     name: Integration tests
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     env:
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/pw-browsers
@@ -116,22 +116,22 @@ jobs:
       with:
         path: |
           ${{ github.workspace }}/pw-browsers
-        key: ${{ runner.os }}-${{ hashFiles('ui-tests/yarn.lock') }}
+        key: ${{ runner.os }}-ubuntu22-${{ hashFiles('ui-tests/yarn.lock') }}
 
-    - name: Install browser
-      run: jlpm playwright install chromium
+    - name: Install browsers
+      run: jlpm playwright install --with-deps chromium firefox webkit
       working-directory: ui-tests
 
     - name: Execute integration tests
       working-directory: ui-tests
       run: |
-        jlpm playwright test --project=chromium
+        jlpm playwright test
 
     - name: Update Playwright Test snapshots
       if: failure()
       working-directory: ui-tests
       run: |
-        jlpm playwright test --project=chromium --update-snapshots
+        jlpm run test:update
 
     - name: Upload Playwright Test report
       if: always()
