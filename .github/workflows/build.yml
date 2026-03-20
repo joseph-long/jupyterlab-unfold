@@ -104,6 +104,7 @@ jobs:
       run: |
         set -eux
         python -m pip install "jupyterlab>=4.0.0,<5" jupyterlab_unfold*.whl
+        jupyter server extension enable jupyterlab_unfold --sys-prefix
 
     - name: Install dependencies
       working-directory: ui-tests
@@ -118,8 +119,8 @@ jobs:
           ${{ github.workspace }}/pw-browsers
         key: ${{ runner.os }}-${{ hashFiles('ui-tests/yarn.lock') }}
 
-    - name: Install browser
-      run: jlpm playwright install chromium
+    - name: Install browsers
+      run: jlpm playwright install chromium firefox webkit
       working-directory: ui-tests
 
     - name: Execute integration tests
