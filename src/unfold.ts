@@ -363,11 +363,9 @@ export class DirTreeListing extends DirListing {
     }
 
     while (nodes.length < virtualWindow.visibleItems.length) {
-      // @ts-ignore signature variations across JupyterLab versions
-      const node = renderer.createItemNode(
-        this._hiddenColumns,
-        this._columnSizes
-      );
+      // createItemNode API differs across JupyterLab versions; call with no
+      // arguments to avoid accessing private DirListing internals.
+      const node = renderer.createItemNode();
       node.classList.add('jp-DirListing-item');
       nodes.push(node);
       if (this._virtualization.bottomSpacer?.parentElement === content) {
