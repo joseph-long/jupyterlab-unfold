@@ -1,19 +1,13 @@
-import json
-from pathlib import Path
-
 from ._version import __version__
 from .handlers import setup_handlers
 
-HERE = Path(__file__).parent.resolve()
-
-with (HERE / "labextension" / "package.json").open() as fid:
-    data = json.load(fid)
+LABEXTENSION_DEST = "jupyterlab-unfold"
 
 
 def _jupyter_labextension_paths():
     return [{
         "src": "labextension",
-        "dest": data["name"]
+        "dest": LABEXTENSION_DEST
     }]
 
 
