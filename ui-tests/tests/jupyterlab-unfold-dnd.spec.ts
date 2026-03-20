@@ -398,8 +398,11 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
       { steps: 8 }
     );
     expect(visiblePathsAfter).toContain(targetPath);
+    // This test validates auto-scroll behavior only; cancel before drop to avoid
+    // triggering server-side move/copy attempts on arbitrary rows.
+    await page.keyboard.press('Escape');
     await page.mouse.up();
-    logVerbose('dropped onto virtualized offscreen target');
+    logVerbose('cancelled drag after virtualized target selection');
     logVerbose('asserted virtualized auto-scroll target selection');
   });
 });
