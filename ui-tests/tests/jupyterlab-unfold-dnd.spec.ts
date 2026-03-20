@@ -5,9 +5,9 @@ import {
   prefixPath
 } from './helpers/fixture';
 import {
+  childExists,
   deletePath,
   installWorkspaceRouteMock,
-  pathExists,
   putFile
 } from './helpers/jupyter-api';
 import { itemByPath } from './helpers/selectors';
@@ -76,8 +76,6 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     const sourcePath = prefixPath(fixtureRoot, 'drag-basic-source.txt');
     const movedPath = prefixPath(fixtureRoot, 'dir2/drag-basic-source.txt');
     await installWorkspaceRouteMock(page);
-    await deletePath(page, TARGET_URL, movedPath);
-    await deletePath(page, TARGET_URL, sourcePath);
     await putFile(page, TARGET_URL, sourcePath, 'drag basic source');
 
     await page.goto(buildLabUrl(TARGET_URL));
@@ -92,10 +90,19 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     await dragBetween(page, sourcePath, prefixPath(fixtureRoot, 'dir2'));
 
     await expect
-      .poll(() => pathExists(page, TARGET_URL, movedPath))
+      .poll(() =>
+        childExists(
+          page,
+          TARGET_URL,
+          prefixPath(fixtureRoot, 'dir2'),
+          'drag-basic-source.txt'
+        )
+      )
       .toBeTruthy();
     await expect
-      .poll(() => pathExists(page, TARGET_URL, sourcePath))
+      .poll(() =>
+        childExists(page, TARGET_URL, fixtureRoot, 'drag-basic-source.txt')
+      )
       .toBeFalsy();
     logVerbose('asserted basic move');
 
@@ -114,8 +121,6 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
       'dir2/dir3/drag-spring-source.txt'
     );
     await installWorkspaceRouteMock(page);
-    await deletePath(page, TARGET_URL, movedPath);
-    await deletePath(page, TARGET_URL, sourcePath);
     await putFile(page, TARGET_URL, sourcePath, 'drag spring source');
 
     await page.goto(buildLabUrl(TARGET_URL));
@@ -183,10 +188,19 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose(`dropped into ${prefixPath(fixtureRoot, 'dir2/dir3')}`);
 
     await expect
-      .poll(() => pathExists(page, TARGET_URL, movedPath))
+      .poll(() =>
+        childExists(
+          page,
+          TARGET_URL,
+          prefixPath(fixtureRoot, 'dir2/dir3'),
+          'drag-spring-source.txt'
+        )
+      )
       .toBeTruthy();
     await expect
-      .poll(() => pathExists(page, TARGET_URL, sourcePath))
+      .poll(() =>
+        childExists(page, TARGET_URL, fixtureRoot, 'drag-spring-source.txt')
+      )
       .toBeFalsy();
     logVerbose('asserted spring-load move');
 
@@ -198,8 +212,6 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     const sourcePath = prefixPath(fixtureRoot, 'drag-copy-source.txt');
     const copiedPath = prefixPath(fixtureRoot, 'dir2/drag-copy-source.txt');
     await installWorkspaceRouteMock(page);
-    await deletePath(page, TARGET_URL, copiedPath);
-    await deletePath(page, TARGET_URL, sourcePath);
     await putFile(page, TARGET_URL, sourcePath, 'drag copy source');
 
     await page.goto(buildLabUrl(TARGET_URL));
@@ -246,10 +258,19 @@ test.describe.serial('jupyterlab-unfold drag and drop', () => {
     logVerbose('copy modifier released');
 
     await expect
-      .poll(() => pathExists(page, TARGET_URL, copiedPath))
+      .poll(() =>
+        childExists(
+          page,
+          TARGET_URL,
+          prefixPath(fixtureRoot, 'dir2'),
+          'drag-copy-source.txt'
+        )
+      )
       .toBeTruthy();
     await expect
-      .poll(() => pathExists(page, TARGET_URL, sourcePath))
+      .poll(() =>
+        childExists(page, TARGET_URL, fixtureRoot, 'drag-copy-source.txt')
+      )
       .toBeTruthy();
     logVerbose('asserted copy behavior');
 

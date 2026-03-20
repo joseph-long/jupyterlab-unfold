@@ -96,3 +96,22 @@ export async function pathExists(
   );
   return response.status() === 200;
 }
+
+export async function childExists(
+  page: Page,
+  targetUrl: string,
+  parentPath: string,
+  childName: string
+): Promise<boolean> {
+  const response = await page.request.get(
+    buildContentsApiUrl(targetUrl, parentPath)
+  );
+  if (response.status() !== 200) {
+    return false;
+  }
+  const body = (await response.json()) as {
+    content?: Array<{ name?: string }>;
+  };
+  const entries = body.content ?? [];
+  return entries.some(entry => entry.name === childName);
+}
