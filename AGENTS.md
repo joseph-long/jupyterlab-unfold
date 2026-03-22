@@ -304,6 +304,43 @@ source <path-to-venv>/bin/activate  # On macOS/Linux
 **✅ Do**: Always activate your environment first
 **❌ Don't**: Run commands in your base/system environment
 
+### Local Isolated Test Environment (Recommended)
+
+Use a repo-local virtual environment so local testing does not depend on global or shared environments.
+
+```bash
+# From repository root
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+
+# Python + Jupyter dependencies
+python -m pip install -e .
+python -m pip install "jupyterlab>=4,<5"
+
+# Frontend dependencies and extension build/install
+jlpm install
+jlpm build:prod
+jupyter labextension develop . --overwrite
+
+# UI test dependencies (one-time)
+cd ui-tests
+jlpm install
+jlpm playwright install
+cd ..
+```
+
+Run local tests from this activated `.venv`:
+
+```bash
+# Unit tests
+jlpm test
+
+# Integration tests
+cd ui-tests
+jlpm playwright test
+```
+
 ---
 
 ### Complete Development Workflow Checklist

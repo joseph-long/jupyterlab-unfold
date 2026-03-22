@@ -4,7 +4,7 @@ import { createBenchmarkTreeInDirectory } from '../../scripts/benchmark-tree-com
 
 const SCRATCH_ROOT = path.resolve(__dirname, '..', '..', 'scratch');
 const GENERATED_FIXTURE_ROOT = path.join(SCRATCH_ROOT, 'generated_fixtures');
-const TEMP_PREFIX = 'unfold-e2e-';
+const TEMP_PREFIX = 'speedy-unfold-e2e-';
 
 const cleanupTargets = new Set<string>();
 let cleanupHooksInstalled = false;

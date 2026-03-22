@@ -486,7 +486,7 @@ async function runSingleBenchmark(
 ): Promise<IRunTiming> {
   const page = await context.newPage();
   const userId = Math.random().toString(16).slice(2, 8);
-  const workspaceId = `unfold-bench-${userId}`;
+  const workspaceId = `speedy-unfold-bench-${userId}`;
   const scenarios = scopedScenarios(fixtureRoot);
   try {
     await page.addInitScript(() => {
