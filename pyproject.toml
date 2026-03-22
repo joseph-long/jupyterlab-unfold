@@ -38,7 +38,7 @@ artifacts = ["jupyterlab_unfold/labextension"]
 exclude = [".github", "binder"]
 
 [tool.hatch.build.targets.wheel]
-include = ["jupyterlab_unfold/labextension/**", "install.json"]
+include = ["jupyterlab_unfold/labextension/**"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "jupyterlab_unfold/labextension" = "share/jupyter/labextensions/jupyterlab-speedy-unfold"
