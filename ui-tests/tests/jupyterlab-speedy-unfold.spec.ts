@@ -26,7 +26,7 @@ function logVerbose(message: string): void {
 
 let fixtureRoot = '';
 
-test.describe.serial('jupyterlab-unfold', () => {
+test.describe.serial('jupyterlab-speedy-unfold', () => {
   test.beforeEach(() => {
     fixtureRoot = createIsolatedFixtureRoot();
   });
@@ -133,14 +133,14 @@ test.describe.serial('jupyterlab-unfold', () => {
     if (VERBOSE) {
       page.on('response', response => {
         const url = response.url();
-        if (!url.includes('/jupyterlab-unfold/tree')) {
+        if (!url.includes('/jupyterlab-speedy-unfold/tree')) {
           return;
         }
         const headers = response.headers();
         logVerbose(
           `tree response status=${response.status()} itemCount=${
-            headers['x-jupyterlab-unfold-item-count'] ?? 'n/a'
-          } treeMs=${headers['x-jupyterlab-unfold-tree-ms'] ?? 'n/a'}`
+            headers['x-jupyterlab-speedy-unfold-item-count'] ?? 'n/a'
+          } treeMs=${headers['x-jupyterlab-speedy-unfold-tree-ms'] ?? 'n/a'}`
         );
       });
     }

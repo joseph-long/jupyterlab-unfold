@@ -1,7 +1,7 @@
 from ._version import __version__
 from .handlers import setup_handlers
 
-LABEXTENSION_DEST = "jupyterlab-unfold"
+LABEXTENSION_DEST = "jupyterlab-speedy-unfold"
 
 
 def _jupyter_labextension_paths():

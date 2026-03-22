@@ -7069,9 +7069,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jupyterlab-unfold@workspace:.":
+"jupyterlab-speedy-unfold@workspace:.":
   version: 0.0.0-use.local
-  resolution: "jupyterlab-unfold@workspace:."
+  resolution: "jupyterlab-speedy-unfold@workspace:."
   dependencies:
     "@jupyterlab/application": ^4.0.5
     "@jupyterlab/builder": ^4.0.0

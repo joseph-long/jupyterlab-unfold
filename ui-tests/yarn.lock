@@ -2808,9 +2808,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jupyterlab-unfold-ui-tests@workspace:.":
+"jupyterlab-speedy-unfold-ui-tests@workspace:.":
   version: 0.0.0-use.local
-  resolution: "jupyterlab-unfold-ui-tests@workspace:."
+  resolution: "jupyterlab-speedy-unfold-ui-tests@workspace:."
   dependencies:
     "@jupyterlab/galata": ^5.0.5
     "@playwright/test": ^1.37.0

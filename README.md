@@ -1,14 +1,14 @@
-# jupyterlab-unfold
+# jupyterlab-speedy-unfold
 
 [![Extension status](https://img.shields.io/badge/status-ready-success 'ready to be used')](https://jupyterlab-contrib.github.io/)
-[![Github Actions Status](https://github.com/jupyterlab-contrib/jupyterlab-unfold/actions/workflows/build.yml/badge.svg)](https://github.com/jupyterlab-contrib/jupyterlab-unfold/actions?query=workflow%3ATests)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/jupyterlab-contrib/jupyterlab-unfold/master?urlpath=lab)
-[![PyPI](https://img.shields.io/pypi/v/jupyterlab-unfold)](https://pypi.org/project/jupyterlab-unfold/)
-[![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/jupyterlab-unfold)](https://anaconda.org/conda-forge/jupyterlab-unfold)
+[![Github Actions Status](https://github.com/jupyterlab-contrib/jupyterlab-speedy-unfold/actions/workflows/build.yml/badge.svg)](https://github.com/jupyterlab-contrib/jupyterlab-speedy-unfold/actions?query=workflow%3ATests)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/jupyterlab-contrib/jupyterlab-speedy-unfold/master?urlpath=lab)
+[![PyPI](https://img.shields.io/pypi/v/jupyterlab-speedy-unfold)](https://pypi.org/project/jupyterlab-speedy-unfold/)
+[![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/jupyterlab-speedy-unfold)](https://anaconda.org/conda-forge/jupyterlab-speedy-unfold)
 
 An IDE-like file browser
 
-![jupyterlab-unfold](https://raw.githubusercontent.com/jupyterlab-contrib/jupyterlab-unfold/master/images/screenshot.png)
+![jupyterlab-speedy-unfold](https://raw.githubusercontent.com/jupyterlab-contrib/jupyterlab-speedy-unfold/master/images/screenshot.png)
 
 ## Requirements
 
@@ -19,7 +19,7 @@ An IDE-like file browser
 To install the extension, execute:
 
 ```bash
-pip install jupyterlab-unfold
+pip install jupyterlab-speedy-unfold
 ```
 
 If your environment does not auto-enable server extensions, run:
@@ -33,7 +33,7 @@ jupyter server extension enable jupyterlab_unfold --sys-prefix
 To remove the extension, execute:
 
 ```bash
-pip uninstall jupyterlab-unfold
+pip uninstall jupyterlab-speedy-unfold
 ```
 
 ## Contributing
@@ -48,10 +48,10 @@ The `jlpm` command is JupyterLab's pinned version of
 
 ```bash
 # Clone the repo to your local environment
-# Change directory to the jupyterlab-unfold directory
+# Change directory to the jupyterlab-speedy-unfold directory
 # Install package in development mode
 pip install -e .
-# Enable the server extension in the active environment (required for /jupyterlab-unfold/tree)
+# Enable the server extension in the active environment (required for /jupyterlab-speedy-unfold/tree)
 jupyter server extension enable jupyterlab_unfold --sys-prefix
 # Link your development version of the extension with JupyterLab
 jupyter labextension develop . --overwrite
@@ -79,12 +79,12 @@ jupyter lab build --minimize=False
 ### Development uninstall
 
 ```bash
-pip uninstall jupyterlab-unfold
+pip uninstall jupyterlab-speedy-unfold
 ```
 
 In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
 command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
-folder is located. Then you can remove the symlink named `jupyterlab-unfold` within that folder.
+folder is located. Then you can remove the symlink named `jupyterlab-speedy-unfold` within that folder.
 
 ## Acknowledgement
 

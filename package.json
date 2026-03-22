@@ -1,5 +1,5 @@
 {
-    "name": "jupyterlab-unfold",
+    "name": "jupyterlab-speedy-unfold",
     "version": "0.3.4",
     "description": "A vscode-like file browser",
     "keywords": [
@@ -7,9 +7,9 @@
         "jupyterlab",
         "jupyterlab-extension"
     ],
-    "homepage": "https://github.com/joseph-long/jupyterlab-unfold",
+    "homepage": "https://github.com/joseph-long/jupyterlab-speedy-unfold",
     "bugs": {
-        "url": "https://github.com/joseph-long/jupyterlab-unfold/issues"
+        "url": "https://github.com/joseph-long/jupyterlab-speedy-unfold/issues"
     },
     "license": "BSD-3-Clause",
     "author": {
@@ -32,7 +32,7 @@
     "style": "style/index.css",
     "repository": {
         "type": "git",
-        "url": "https://github.com/joseph-long/jupyterlab-unfold.git"
+        "url": "https://github.com/joseph-long/jupyterlab-speedy-unfold.git"
     },
     "scripts": {
         "build": "jlpm build:lib && jlpm build:labextension:dev",

@@ -138,11 +138,11 @@ function logProbeTimings(
   headers: Record<string, string>,
   bodyTimings?: unknown
 ): void {
-  const treeMs = headers['x-jupyterlab-unfold-tree-ms'];
-  const encodeMs = headers['x-jupyterlab-unfold-encode-ms'];
-  const totalMs = headers['x-jupyterlab-unfold-total-ms'];
-  const itemCount = headers['x-jupyterlab-unfold-item-count'];
-  const listedDirs = headers['x-jupyterlab-unfold-listed-dirs'];
+  const treeMs = headers['x-jupyterlab-speedy-unfold-tree-ms'];
+  const encodeMs = headers['x-jupyterlab-speedy-unfold-encode-ms'];
+  const totalMs = headers['x-jupyterlab-speedy-unfold-total-ms'];
+  const itemCount = headers['x-jupyterlab-speedy-unfold-item-count'];
+  const listedDirs = headers['x-jupyterlab-speedy-unfold-listed-dirs'];
 
   if (treeMs || encodeMs || totalMs || itemCount || listedDirs) {
     logVerbose(
@@ -340,7 +340,7 @@ async function measureVisibilityTransition(
 
     const treeResponsePromise = page.waitForResponse(
       response =>
-        response.url().includes('/jupyterlab-unfold/tree') &&
+        response.url().includes('/jupyterlab-speedy-unfold/tree') &&
         response.request().method() === 'POST',
       { timeout: 5_000 }
     );
@@ -359,7 +359,7 @@ async function measureVisibilityTransition(
 
   if (!treeResponse) {
     throw new Error(
-      `${stepLabel} failed: click did not trigger /jupyterlab-unfold/tree after ${maxClickAttempts} attempts`
+      `${stepLabel} failed: click did not trigger /jupyterlab-speedy-unfold/tree after ${maxClickAttempts} attempts`
     );
   }
 
@@ -385,11 +385,11 @@ async function measureVisibilityTransition(
   })();
   const backend: IBackendStepTiming = {
     status: treeResponse.status(),
-    treeMs: parseNumberHeader(headers, 'x-jupyterlab-unfold-tree-ms'),
-    encodeMs: parseNumberHeader(headers, 'x-jupyterlab-unfold-encode-ms'),
-    totalMs: parseNumberHeader(headers, 'x-jupyterlab-unfold-total-ms'),
-    itemCount: parseNumberHeader(headers, 'x-jupyterlab-unfold-item-count'),
-    listedDirs: parseNumberHeader(headers, 'x-jupyterlab-unfold-listed-dirs'),
+    treeMs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-tree-ms'),
+    encodeMs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-encode-ms'),
+    totalMs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-total-ms'),
+    itemCount: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-item-count'),
+    listedDirs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-listed-dirs'),
     path: postData?.path ?? null,
     updatePath: postData?.update_path ?? null,
     openPathsCount: Array.isArray(postData?.open_paths)

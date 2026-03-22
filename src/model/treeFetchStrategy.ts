@@ -83,7 +83,7 @@ export async function fetchWithFallback(
     return await fetchViaServer(args);
   } catch {
     console.warn(
-      'jupyterlab-unfold server tree endpoint unavailable, using Contents API fallback'
+      'jupyterlab-speedy-unfold server tree endpoint unavailable, using Contents API fallback'
     );
     return fetchViaContents(args);
   }

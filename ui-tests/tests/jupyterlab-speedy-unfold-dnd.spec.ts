@@ -62,7 +62,7 @@ async function openFixtureRoot(page: Page): Promise<void> {
   );
 }
 
-test.describe.serial('jupyterlab-unfold drag and drop', () => {
+test.describe.serial('jupyterlab-speedy-unfold drag and drop', () => {
   test.beforeEach(() => {
     fixtureRoot = createIsolatedFixtureRoot();
   });

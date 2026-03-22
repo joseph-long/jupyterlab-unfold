@@ -1,7 +1,7 @@
 {
-  "name": "jupyterlab-unfold-ui-tests",
+  "name": "jupyterlab-speedy-unfold-ui-tests",
   "version": "1.0.0",
-  "description": "JupyterLab jupyterlab-unfold Integration Tests",
+  "description": "JupyterLab jupyterlab-speedy-unfold Integration Tests",
   "private": true,
   "scripts": {
     "bench:filebrowser": "jlpm playwright test --config=playwright.benchmark.config.js",

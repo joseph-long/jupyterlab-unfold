@@ -63,7 +63,7 @@ export async function fetchTreeListing(
   const requestId = ++requestCounter;
   const url = URLExt.join(
     request.serverSettings.baseUrl,
-    'jupyterlab-unfold',
+    'jupyterlab-speedy-unfold',
     'tree'
   );
   const startTime = performance.now();
@@ -100,27 +100,27 @@ export async function fetchTreeListing(
       totalMs: jsonEndTime - startTime,
       serverTreeMs: parseNumberHeader(
         response.headers,
-        'x-jupyterlab-unfold-tree-ms',
+        'x-jupyterlab-speedy-unfold-tree-ms',
         data.timings?.tree_ms
       ),
       serverEncodeMs: parseNumberHeader(
         response.headers,
-        'x-jupyterlab-unfold-encode-ms',
+        'x-jupyterlab-speedy-unfold-encode-ms',
         undefined
       ),
       serverTotalMs: parseNumberHeader(
         response.headers,
-        'x-jupyterlab-unfold-total-ms',
+        'x-jupyterlab-speedy-unfold-total-ms',
         undefined
       ),
       serverItemCount: parseNumberHeader(
         response.headers,
-        'x-jupyterlab-unfold-item-count',
+        'x-jupyterlab-speedy-unfold-item-count',
         data.timings?.item_count
       ),
       serverListedDirs: parseNumberHeader(
         response.headers,
-        'x-jupyterlab-unfold-listed-dirs',
+        'x-jupyterlab-speedy-unfold-listed-dirs',
         data.timings?.listed_dirs
       )
     }

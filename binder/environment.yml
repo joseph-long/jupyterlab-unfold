@@ -1,10 +1,10 @@
-# a mybinder.org-ready environment for demoing jupyterlab-unfold
+# a mybinder.org-ready environment for demoing jupyterlab-speedy-unfold
 # this environment may also be used locally on Linux/MacOS/Windows, e.g.
 #
 #   conda env update --file binder/environment.yml
-#   conda activate jupyterlab-unfold-demo
+#   conda activate jupyterlab-speedy-unfold-demo
 #
-name: jupyterlab-unfold-demo
+name: jupyterlab-speedy-unfold-demo
 
 channels:
   - conda-forge

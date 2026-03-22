@@ -71,7 +71,7 @@ class TreeHandler(APIHandler):
 def setup_handlers(web_app):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
-    route_pattern = url_path_join(base_url, "jupyterlab-unfold", "tree")
+    route_pattern = url_path_join(base_url, "jupyterlab-speedy-unfold", "tree")
     handlers = [(route_pattern, TreeHandler)]
     web_app.add_handlers(host_pattern, handlers)
 

@@ -19,7 +19,7 @@ import { IStateDB } from '@jupyterlab/statedb';
 
 import { FileTreeBrowser, FilterFileTreeBrowserModel } from './unfold';
 
-const SETTINGS_ID = 'jupyterlab-unfold:jupyterlab-unfold-settings';
+const SETTINGS_ID = 'jupyterlab-speedy-unfold:jupyterlab-speedy-unfold-settings';
 
 /**
  * The file browser namespace token.
@@ -27,7 +27,7 @@ const SETTINGS_ID = 'jupyterlab-unfold:jupyterlab-unfold-settings';
 const namespace = 'filebrowser';
 
 const fileBrowserFactory: JupyterFrontEndPlugin<IFileBrowserFactory> = {
-  id: 'jupyterlab-unfold:FileBrowserFactory',
+  id: 'jupyterlab-speedy-unfold:FileBrowserFactory',
   provides: IFileBrowserFactory,
   requires: [IDocumentManager, ITranslator, ISettingRegistry],
   optional: [IStateDB],

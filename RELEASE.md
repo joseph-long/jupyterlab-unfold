@@ -1,4 +1,4 @@
-# Making a new release of jupyterlab-unfold
+# Making a new release of jupyterlab-speedy-unfold
 
 The extension can be published to `PyPI` and `npm` manually or using the [Jupyter Releaser](https://github.com/jupyter-server/jupyter_releaser).
 

@@ -94,7 +94,7 @@ function emitBenchmarkEvent(event: IBenchmarkEvent): void {
     try {
       benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__(event);
     } catch (error) {
-      console.warn('jupyterlab-unfold benchmark hook failed', error);
+      console.warn('jupyterlab-speedy-unfold benchmark hook failed', error);
     }
     return;
   }
