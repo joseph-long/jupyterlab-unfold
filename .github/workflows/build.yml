@@ -37,7 +37,7 @@ jobs:
         python -m pip install .[test]
 
         jupyter labextension list
-        jupyter labextension list 2>&1 | grep -ie "jupyterlab-unfold.*OK"
+        jupyter labextension list 2>&1 | grep -ie "jupyterlab-speedy-unfold.*OK"
 
     - name: Package the extension
       run: |
@@ -45,13 +45,13 @@ jobs:
 
         pip install build
         python -m build
-        pip uninstall -y "jupyterlab-unfold" jupyterlab
+        pip uninstall -y "jupyterlab-speedy-unfold" jupyterlab
 
     - name: Upload extension packages
       uses: actions/upload-artifact@v4
       with:
         name: extension-artifacts
-        path: dist/jupyterlab_unfold*
+        path: dist/jupyterlab_speedy_unfold*
         if-no-files-found: error
 
   test_isolated:
@@ -74,11 +74,11 @@ jobs:
         sudo rm -rf $(which node)
         sudo rm -rf $(which node)
 
-        pip install "jupyterlab>=4.0.0,<5" jupyterlab_unfold*.whl
+        pip install "jupyterlab>=4.0.0,<5" jupyterlab_speedy_unfold*.whl
 
 
         jupyter labextension list
-        jupyter labextension list 2>&1 | grep -ie "jupyterlab-unfold.*OK"
+        jupyter labextension list 2>&1 | grep -ie "jupyterlab-speedy-unfold.*OK"
 
   integration-tests:
     name: Integration tests
@@ -103,7 +103,7 @@ jobs:
     - name: Install the extension
       run: |
         set -eux
-        python -m pip install "jupyterlab>=4.0.0,<5" jupyterlab_unfold*.whl
+        python -m pip install "jupyterlab>=4.0.0,<5" jupyterlab_speedy_unfold*.whl
 
     - name: Install dependencies
       working-directory: ui-tests
@@ -137,7 +137,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: jupyterlab-unfold-playwright-tests
+        name: jupyterlab-speedy-unfold-playwright-tests
         path: |
           ui-tests
 
