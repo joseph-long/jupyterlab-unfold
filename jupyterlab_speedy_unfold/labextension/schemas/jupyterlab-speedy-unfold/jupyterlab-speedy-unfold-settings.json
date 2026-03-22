@@ -1,6 +1,6 @@
 {
   "title": "jupyterlab-speedy-unfold settings",
-  "description": "Settings for the jupyterlab-speedy-unfold extension.",
+  "description": "Settings for the JupyterLab-unfold extension.",
   "type": "object",
   "properties": {
     "singleClickToUnfold": {

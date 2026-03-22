@@ -112,7 +112,7 @@ npx tsc --noEmit               # Check all files
 After editing Python files:
 
 ```bash
-python -m py_compile jupyterlab_unfold/__init__.py  # Check single file for syntax errors
+python -m py_compile jupyterlab_speedy_unfold/__init__.py  # Check single file for syntax errors
 ```
 
 ## Coding Standards
@@ -161,7 +161,7 @@ function activate(app: JupyterFrontEnd): void {}
 **✅ Do**: Define plugin ID in `src/index.ts`:
 
 ```typescript
-const PLUGIN_ID = 'jupyterlab_unfold:plugin';
+const PLUGIN_ID = 'jupyterlab_speedy_unfold:plugin';
 ```
 
 **✅ Do**: For extensions with multiple commands, create a `src/commands.ts` module to centralize command definitions:
@@ -173,8 +173,8 @@ import { ReadonlyPartialJSONObject } from '@lumino/coreutils';
 
 // Command IDs
 export namespace CommandIDs {
-  export const openPanel = 'jupyterlab_unfold:open-panel';
-  export const refreshData = 'jupyterlab_unfold:refresh-data';
+  export const openPanel = 'jupyterlab_speedy_unfold:open-panel';
+  export const refreshData = 'jupyterlab_speedy_unfold:refresh-data';
 }
 
 // Command argument types
@@ -224,7 +224,7 @@ import {
 import { registerCommands, CommandIDs, CommandArguments } from './commands';
 
 const plugin: JupyterFrontEndPlugin<void> = {
-  id: 'jupyterlab_unfold:plugin',
+  id: 'jupyterlab_speedy_unfold:plugin',
   autoStart: true,
   activate: (app: JupyterFrontEnd) => {
     // Register all commands with JupyterLab's command registry
@@ -346,7 +346,7 @@ Many issues arise from confusing these two steps:
 #### `jlpm build` — Compiles the Extension. Do this every time you change TypeScript code.
 
 - **What it does**: Compiles TypeScript → JavaScript, bundles the extension
-- **Output**: Creates files in `lib/` and `jupyterlab_unfold/labextension/`
+- **Output**: Creates files in `lib/` and `jupyterlab_speedy_unfold/labextension/`
 - **What it does NOT do**: Register the extension with JupyterLab
 
 #### `pip install -e .` + `jupyter labextension develop .` — Registers the Extension. Do this once as a setup step.
@@ -445,7 +445,7 @@ jupyter labextension develop . --overwrite
 
 ```bash
 ls -la lib/                          # Should contain compiled .js files
-ls -la jupyterlab_unfold/labextension/  # Should contain bundled extension
+ls -la jupyterlab_speedy_unfold/labextension/  # Should contain bundled extension
 ```
 
 **6. If still not working**, try a clean rebuild following the reset instructions below
@@ -554,7 +554,7 @@ try {
 **✅ Do**: Namespace all CSS in `style/index.css`
 
 ```css
-.jp-jupyterlab_unfold-widget {
+.jp-jupyterlab_speedy_unfold-widget {
   padding: 8px;
 }
 ```
@@ -580,11 +580,11 @@ dispose(): void {
 
 Use these patterns consistently throughout your code:
 
-- **Plugin ID** (in `src/index.ts`): `'jupyterlab_unfold:plugin'`
-- **Command IDs** (in `src/commands.ts` or `src/index.ts`): `'jupyterlab_unfold:command-name'`
+- **Plugin ID** (in `src/index.ts`): `'jupyterlab_speedy_unfold:plugin'`
+- **Command IDs** (in `src/commands.ts` or `src/index.ts`): `'jupyterlab_speedy_unfold:command-name'`
   - For multiple commands, create `src/commands.ts` with a centralized `COMMANDS` mapping
   - For 1-2 commands, define directly in `src/index.ts`
-- **CSS classes** (in `style/index.css`): `.jp-jupyterlab_unfold-ClassName`
+- **CSS classes** (in `style/index.css`): `.jp-jupyterlab_speedy_unfold-ClassName`
 
 ### Essential Commands
 

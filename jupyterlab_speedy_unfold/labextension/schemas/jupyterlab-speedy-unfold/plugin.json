@@ -1,0 +1,8 @@
+{
+  "jupyter.lab.shortcuts": [],
+  "title": "jupyterlab-speedy-unfold",
+  "description": "jupyterlab-speedy-unfold settings.",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

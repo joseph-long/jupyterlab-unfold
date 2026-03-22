@@ -13,10 +13,10 @@ def _jupyter_labextension_paths():
 
 def _jupyter_server_extension_points():
     return [{
-        "module": "jupyterlab_unfold"
+        "module": "jupyterlab_speedy_unfold"
     }]
 
 
 def _load_jupyter_server_extension(server_app):
     setup_handlers(server_app.web_app)
-    server_app.log.info("Registered jupyterlab_unfold server extension")
+    server_app.log.info("Registered jupyterlab_speedy_unfold server extension")

@@ -5,11 +5,11 @@
 
 ## Fork History
 
-This repository is a fork of `jupyterlab-unfold`.
+This repository is a fork of `jupyterlab-speedy-unfold`.
 
 For project history before this fork, see:
 
-- https://github.com/jupyterlab-contrib/jupyterlab-unfold/blob/master/CHANGELOG.md
+- https://github.com/jupyterlab-contrib/jupyterlab-speedy-unfold/blob/master/CHANGELOG.md
 
 ## 0.1.0 - 2026-03-22
 

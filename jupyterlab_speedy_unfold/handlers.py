@@ -48,15 +48,15 @@ class TreeHandler(APIHandler):
         total_ms = (time.perf_counter() - total_start) * 1000
 
         self.set_header("Content-Type", "application/json")
-        self.set_header("X-Jupyterlab-Unfold-Tree-Ms", f"{tree_ms:.3f}")
-        self.set_header("X-Jupyterlab-Unfold-Encode-Ms", f"{encode_ms:.3f}")
-        self.set_header("X-Jupyterlab-Unfold-Total-Ms", f"{total_ms:.3f}")
-        self.set_header("X-Jupyterlab-Unfold-Item-Count", str(len(items)))
-        self.set_header("X-Jupyterlab-Unfold-Listed-Dirs", str(listed_dirs))
+        self.set_header("X-jupyterlab-speedy-unfold-Tree-Ms", f"{tree_ms:.3f}")
+        self.set_header("X-jupyterlab-speedy-unfold-Encode-Ms", f"{encode_ms:.3f}")
+        self.set_header("X-jupyterlab-speedy-unfold-Total-Ms", f"{total_ms:.3f}")
+        self.set_header("X-jupyterlab-speedy-unfold-Item-Count", str(len(items)))
+        self.set_header("X-jupyterlab-speedy-unfold-Listed-Dirs", str(listed_dirs))
 
         if log_timings:
             self.log.info(
-                "jupyterlab_unfold.tree path=%s items=%d dirs=%d tree_ms=%.3f encode_ms=%.3f total_ms=%.3f",
+                "jupyterlab_speedy_unfold.tree path=%s items=%d dirs=%d tree_ms=%.3f encode_ms=%.3f total_ms=%.3f",
                 path or "/",
                 len(items),
                 listed_dirs,

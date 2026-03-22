@@ -34,26 +34,26 @@ source = "nodejs"
 fields = ["description", "authors", "urls"]
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["jupyterlab_unfold/labextension"]
+artifacts = ["jupyterlab_speedy_unfold/labextension"]
 exclude = [".github", "binder"]
 
 [tool.hatch.build.targets.wheel]
-include = ["jupyterlab_unfold/**/*.py", "jupyterlab_unfold/labextension/**"]
+include = ["jupyterlab_speedy_unfold/**/*.py", "jupyterlab_speedy_unfold/labextension/**"]
 
 [tool.hatch.build.targets.wheel.shared-data]
-"jupyterlab_unfold/labextension" = "share/jupyter/labextensions/jupyterlab-speedy-unfold"
+"jupyterlab_speedy_unfold/labextension" = "share/jupyter/labextensions/jupyterlab-speedy-unfold"
 "install.json" = "share/jupyter/labextensions/jupyterlab-speedy-unfold/install.json"
 "jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
 
 [tool.hatch.build.hooks.version]
-path = "jupyterlab_unfold/_version.py"
+path = "jupyterlab_speedy_unfold/_version.py"
 
 [tool.hatch.build.hooks.jupyter-builder]
 dependencies = ["hatch-jupyter-builder>=0.5"]
 build-function = "hatch_jupyter_builder.npm_builder"
 ensured-targets = [
-    "jupyterlab_unfold/labextension/static/style.js",
-    "jupyterlab_unfold/labextension/package.json",
+    "jupyterlab_speedy_unfold/labextension/static/style.js",
+    "jupyterlab_speedy_unfold/labextension/package.json",
 ]
 
 [tool.hatch.build.hooks.jupyter-builder.build-kwargs]
@@ -64,7 +64,7 @@ npm = ["jlpm"]
 build_cmd = "install:extension"
 npm = ["jlpm"]
 source_dir = "src"
-build_dir = "jupyterlab_unfold/labextension"
+build_dir = "jupyterlab_speedy_unfold/labextension"
 
 [tool.jupyter-releaser.options]
 version_cmd = "hatch version"

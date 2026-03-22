@@ -25,7 +25,7 @@ pip install jupyterlab-speedy-unfold
 If your environment does not auto-enable server extensions, run:
 
 ```bash
-jupyter server extension enable jupyterlab_unfold --sys-prefix
+jupyter server extension enable jupyterlab_speedy_unfold --sys-prefix
 ```
 
 ## Uninstall
@@ -52,7 +52,7 @@ The `jlpm` command is JupyterLab's pinned version of
 # Install package in development mode
 pip install -e .
 # Enable the server extension in the active environment (required for /jupyterlab-speedy-unfold/tree)
-jupyter server extension enable jupyterlab_unfold --sys-prefix
+jupyter server extension enable jupyterlab_speedy_unfold --sys-prefix
 # Link your development version of the extension with JupyterLab
 jupyter labextension develop . --overwrite
 # Rebuild extension Typescript source after making changes

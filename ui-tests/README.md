@@ -97,7 +97,7 @@ The report includes both:
 - `summaryMs`: UI-observed timings for first display, unfold, fold, and re-show.
 - `summaryBreakdownMs`: averaged backend and client-stage timings captured per tree request (server headers and instrumented frontend stages).
 
-For benchmark runs, the page installs a callback at `window.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__` and the extension emits per-request timing events to that hook.
+For benchmark runs, the page installs a callback at `window.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__` and the extension emits per-request timing events to that hook.
 
 ## Update the tests snapshots
 

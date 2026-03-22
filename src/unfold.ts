@@ -65,8 +65,8 @@ interface IBenchmarkEvent {
 }
 
 interface IBenchmarkWindow extends Window {
-  __JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__?: (event: IBenchmarkEvent) => void;
-  __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: IBenchmarkEvent[];
+  __jupyterlab_speedy_unfold_BENCHMARK_HOOK__?: (event: IBenchmarkEvent) => void;
+  __jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?: IBenchmarkEvent[];
 }
 
 interface IItemNodeRefs {
@@ -89,18 +89,18 @@ function emitBenchmarkEvent(event: IBenchmarkEvent): void {
 
   const benchmarkWindow = window as IBenchmarkWindow;
   if (
-    typeof benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__ === 'function'
+    typeof benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__ === 'function'
   ) {
     try {
-      benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__(event);
+      benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__(event);
     } catch (error) {
       console.warn('jupyterlab-speedy-unfold benchmark hook failed', error);
     }
     return;
   }
 
-  if (Array.isArray(benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__)) {
-    benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__.push(event);
+  if (Array.isArray(benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__)) {
+    benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__.push(event);
   }
 }
 

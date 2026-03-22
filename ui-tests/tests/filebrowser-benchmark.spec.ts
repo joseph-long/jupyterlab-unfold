@@ -277,9 +277,9 @@ async function waitForBenchmarkEvent(
   while (Date.now() < timeoutAt) {
     const event = await page.evaluate(id => {
       const benchmarkWindow = window as unknown as {
-        __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: IClientBenchmarkEvent[];
+        __jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?: IClientBenchmarkEvent[];
       };
-      const queue = benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__;
+      const queue = benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__;
       if (!Array.isArray(queue)) {
         return null;
       }
@@ -491,12 +491,12 @@ async function runSingleBenchmark(
   try {
     await page.addInitScript(() => {
       const benchmarkWindow = window as unknown as {
-        __JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?: unknown[];
-        __JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__?: (event: unknown) => void;
+        __jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?: unknown[];
+        __jupyterlab_speedy_unfold_BENCHMARK_HOOK__?: (event: unknown) => void;
       };
-      benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__ = [];
-      benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_HOOK__ = event => {
-        benchmarkWindow.__JUPYTERLAB_UNFOLD_BENCHMARK_EVENTS__?.push(event);
+      benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__ = [];
+      benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__ = event => {
+        benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?.push(event);
       };
     });
 
@@ -529,7 +529,7 @@ async function runSingleBenchmark(
         `Server endpoint ${buildTreeEndpointUrl(
           TARGET_URL
         )} returned 404. Enable the server extension in the target environment: ` +
-          '`jupyter server extension enable jupyterlab_unfold --sys-prefix`.'
+          '`jupyter server extension enable jupyterlab_speedy_unfold --sys-prefix`.'
       );
     }
     if (!treeProbe.ok()) {

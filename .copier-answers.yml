@@ -6,8 +6,8 @@ author_name: Martin Renou
 has_binder: true
 has_settings: true
 kind: frontend
-labextension_name: jupyterlab-unfold
+labextension_name: jupyterlab-speedy-unfold
 project_short_description: A vscode-like file browser
-python_name: jupyterlab-unfold
-repository: https://github.com/jupyterlab-contrib/jupyterlab-unfold.git
+python_name: jupyterlab-speedy-unfold
+repository: https://github.com/jupyterlab-contrib/jupyterlab-speedy-unfold.git
 test: true
