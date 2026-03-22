@@ -65,7 +65,9 @@ interface IBenchmarkEvent {
 }
 
 interface IBenchmarkWindow extends Window {
-  __jupyterlab_speedy_unfold_BENCHMARK_HOOK__?: (event: IBenchmarkEvent) => void;
+  __jupyterlab_speedy_unfold_BENCHMARK_HOOK__?: (
+    event: IBenchmarkEvent
+  ) => void;
   __jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?: IBenchmarkEvent[];
 }
 
@@ -89,7 +91,8 @@ function emitBenchmarkEvent(event: IBenchmarkEvent): void {
 
   const benchmarkWindow = window as IBenchmarkWindow;
   if (
-    typeof benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__ === 'function'
+    typeof benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__ ===
+    'function'
   ) {
     try {
       benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__(event);
@@ -99,7 +102,9 @@ function emitBenchmarkEvent(event: IBenchmarkEvent): void {
     return;
   }
 
-  if (Array.isArray(benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__)) {
+  if (
+    Array.isArray(benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__)
+  ) {
     benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__.push(event);
   }
 }

@@ -279,7 +279,8 @@ async function waitForBenchmarkEvent(
       const benchmarkWindow = window as unknown as {
         __jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?: IClientBenchmarkEvent[];
       };
-      const queue = benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__;
+      const queue =
+        benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__;
       if (!Array.isArray(queue)) {
         return null;
       }
@@ -496,7 +497,9 @@ async function runSingleBenchmark(
       };
       benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__ = [];
       benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_HOOK__ = event => {
-        benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?.push(event);
+        benchmarkWindow.__jupyterlab_speedy_unfold_BENCHMARK_EVENTS__?.push(
+          event
+        );
       };
     });
 
