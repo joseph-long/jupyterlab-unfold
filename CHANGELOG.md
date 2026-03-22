@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- <START NEW CHANGELOG ENTRY> -->
+
 ## Fork History
 
 This repository is a fork of `jupyterlab-unfold`.

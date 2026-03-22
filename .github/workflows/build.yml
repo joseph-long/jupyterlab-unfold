@@ -36,8 +36,8 @@ jobs:
         set -eux
         python -m pip install .[test]
 
-        jupyter labextension list
-        jupyter labextension list 2>&1 | grep -ie "jupyterlab-speedy-unfold.*OK"
+        python -m pip show jupyterlab-speedy-unfold
+        ! python -m pip show jupyterlab-unfold
 
     - name: Package the extension
       run: |
@@ -77,8 +77,8 @@ jobs:
         pip install "jupyterlab>=4.0.0,<5" jupyterlab_speedy_unfold*.whl
 
 
-        jupyter labextension list
-        jupyter labextension list 2>&1 | grep -ie "jupyterlab-speedy-unfold.*OK"
+        python -m pip show jupyterlab-speedy-unfold
+        ! python -m pip show jupyterlab-unfold
 
   integration-tests:
     name: Integration tests
