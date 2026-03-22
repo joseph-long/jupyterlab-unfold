@@ -55,7 +55,10 @@ export function buildTreeEndpointUrl(rawTarget: string): string {
     ? labUrl.pathname.slice(0, -4)
     : labUrl.pathname;
   const endpoint = new URL(labUrl.origin);
-  endpoint.pathname = `${basePath.replace(/\/$/, '')}/jupyterlab-speedy-unfold/tree`;
+  endpoint.pathname = `${basePath.replace(
+    /\/$/,
+    ''
+  )}/jupyterlab-speedy-unfold/tree`;
   if (labUrl.searchParams.has('token')) {
     endpoint.searchParams.set('token', labUrl.searchParams.get('token') ?? '');
   }

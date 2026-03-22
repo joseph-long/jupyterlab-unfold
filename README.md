@@ -1,14 +1,14 @@
 # jupyterlab-speedy-unfold
 
 [![Extension status](https://img.shields.io/badge/status-ready-success 'ready to be used')](https://jupyterlab-contrib.github.io/)
-[![Github Actions Status](https://github.com/jupyterlab-contrib/jupyterlab-speedy-unfold/actions/workflows/build.yml/badge.svg)](https://github.com/jupyterlab-contrib/jupyterlab-speedy-unfold/actions?query=workflow%3ATests)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/jupyterlab-contrib/jupyterlab-speedy-unfold/master?urlpath=lab)
+[![Github Actions Status](https://github.com/joseph-long/jupyterlab-speedy-unfold/actions/workflows/build.yml/badge.svg)](https://github.com/joseph-long/jupyterlab-speedy-unfold/actions?query=workflow%3ABuild)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/joseph-long/jupyterlab-speedy-unfold/main?urlpath=lab)
 [![PyPI](https://img.shields.io/pypi/v/jupyterlab-speedy-unfold)](https://pypi.org/project/jupyterlab-speedy-unfold/)
 [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/jupyterlab-speedy-unfold)](https://anaconda.org/conda-forge/jupyterlab-speedy-unfold)
 
 An IDE-like file browser
 
-![jupyterlab-speedy-unfold](https://raw.githubusercontent.com/jupyterlab-contrib/jupyterlab-speedy-unfold/master/images/screenshot.png)
+![jupyterlab-speedy-unfold](https://raw.githubusercontent.com/joseph-long/jupyterlab-speedy-unfold/main/images/screenshot.png)
 
 ## Requirements
 

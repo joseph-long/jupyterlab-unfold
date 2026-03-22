@@ -386,10 +386,19 @@ async function measureVisibilityTransition(
   const backend: IBackendStepTiming = {
     status: treeResponse.status(),
     treeMs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-tree-ms'),
-    encodeMs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-encode-ms'),
+    encodeMs: parseNumberHeader(
+      headers,
+      'x-jupyterlab-speedy-unfold-encode-ms'
+    ),
     totalMs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-total-ms'),
-    itemCount: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-item-count'),
-    listedDirs: parseNumberHeader(headers, 'x-jupyterlab-speedy-unfold-listed-dirs'),
+    itemCount: parseNumberHeader(
+      headers,
+      'x-jupyterlab-speedy-unfold-item-count'
+    ),
+    listedDirs: parseNumberHeader(
+      headers,
+      'x-jupyterlab-speedy-unfold-listed-dirs'
+    ),
     path: postData?.path ?? null,
     updatePath: postData?.update_path ?? null,
     openPathsCount: Array.isArray(postData?.open_paths)

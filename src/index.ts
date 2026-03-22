@@ -19,7 +19,8 @@ import { IStateDB } from '@jupyterlab/statedb';
 
 import { FileTreeBrowser, FilterFileTreeBrowserModel } from './unfold';
 
-const SETTINGS_ID = 'jupyterlab-speedy-unfold:jupyterlab-speedy-unfold-settings';
+const SETTINGS_ID =
+  'jupyterlab-speedy-unfold:jupyterlab-speedy-unfold-settings';
 
 /**
  * The file browser namespace token.
