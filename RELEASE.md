@@ -72,9 +72,9 @@ Here is a summary of the steps to cut a new release:
 <details><summary>Using PyPI trusted publisher (modern way)</summary>
 
 - Set up your PyPI project by [adding a trusted publisher](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
-  - The _workflow file_ is `.github/workflows/build.yml`
-  - The _environment name_ is `release`
-  - The _repository_ is `joseph-long/jupyterlab-speedy-unfold`
+  - The _workflow name_ is `build.yml`
+  - The _environment name_ is `pypi`
+  - The _owner_ is `joseph-long` and _repository_ is `jupyterlab-speedy-unfold`
 - Ensure the publish release job as `permissions`: `id-token : write` (see the [documentation](https://docs.pypi.org/trusted-publishers/using-a-publisher/))
 - If you see a pending publisher request in PyPI for this repository/environment, approve it in PyPI before re-running the GitHub release workflow.
 

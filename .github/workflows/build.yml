@@ -147,7 +147,7 @@ jobs:
   upload_pypi:
     needs: [test_isolated, integration-tests]
     runs-on: ubuntu-latest
-    environment: release
+    environment: pypi
     permissions:
       id-token: write
     if: github.event_name == 'release' && github.event.action == 'published'
@@ -158,4 +158,5 @@ jobs:
           path: dist
       - name: Display structure of downloaded files
         run: ls -R
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
