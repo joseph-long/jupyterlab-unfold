@@ -43,7 +43,7 @@ include = ["jupyterlab_speedy_unfold/**/*.py", "jupyterlab_speedy_unfold/labexte
 [tool.hatch.build.targets.wheel.shared-data]
 "jupyterlab_speedy_unfold/labextension" = "share/jupyter/labextensions/jupyterlab-speedy-unfold"
 "install.json" = "share/jupyter/labextensions/jupyterlab-speedy-unfold/install.json"
-"jupyter-config/server-config" = "etc/jupyter/jupyter_server_config.d"
+"jupyter-config/jupyter_server_config.d" = "etc/jupyter/jupyter_server_config.d"
 
 [tool.hatch.build.hooks.version]
 path = "jupyterlab_speedy_unfold/_version.py"
